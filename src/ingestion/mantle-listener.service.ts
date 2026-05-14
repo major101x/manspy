@@ -34,9 +34,11 @@ export class MantleListenerService implements OnModuleInit {
     this.unwatchPending = this.client.watchPendingTransactions({
       onTransactions: (txs) => {
         for (const hash of txs) {
-          this.logger.verbose(`Pending tx: ${hash}`);
+          this.logger.log(`Pending tx: ${hash}`);
         }
       },
     });
+
+    this.logger.log('Subscribed to pending transactions');
   }
 }

@@ -4,43 +4,62 @@ This repository implements **Mantle Watchdog**, a Telegram bot that monitors Man
 
 ## State
 
-- No source code or config files exist yet (still in design phase).
-- No build/test/lint tooling chosen.
-- No CI or pre-commit hooks.
-- No `.git` directory — VCS may not be initialized.
+- Week 1 scaffold complete — NestJS + Prisma + Docker + Telegraf + viem + PriceService.
+- No CI or pre-commit hooks yet.
+- Git initialized on `main`.
 
 ## Key Reference
 
-- **`docs/mantle-watchdog-prd.md`** — the sole authoritative document. Read it before doing anything else. It contains the full architecture, stack decisions, data models, prompt design, and milestone plan.
+- **`docs/mantle-watchdog-prd.md`** — full architecture, stack, data models, prompt design, milestone plan.
 
-## Stack (from PRD)
+## Commands
+
+| Action | Command |
+|---|---|
+| Start infra (postgres + redis) | `docker compose up -d` |
+| Dev server (hot reload) | `npm run start:dev` |
+| Build | `npm run build` |
+| Prisma migration | `npx prisma migrate dev --name <name>` |
+| Prisma generate | `npx prisma generate` |
+| Prisma Studio | `npx prisma studio` |
+
+## Architecture
+
+```
+Mantle RPC (WebSocket) → IngestionModule → DetectionModule → AlertModule → TelegrafService → User
+                                ↑                        ↓
+                           PriceModule           BullMQ (Week 2)
+```
+
+**Modules:** AppModule → ConfigModule, PrismaModule, BotModule, IngestionModule, PriceModule
+
+## Known Quirks
+
+- **Telegraf `launch()`** calls `api.telegram.org` and will fail if outbound HTTPS is blocked in the dev environment. Works fine on deploy.
+- **Prisma 6** — we pinned to v6. Do not upgrade to v7 without updating the datasource config pattern (`prisma.config.ts` + driver adapters).
+- **Redis price cache** uses `SET key value EX ttl` (not `SETEX`).
+- **Mantle RPC WS** falls back to HTTP if WebSocket drops.
+
+## Stack
 
 | Layer | Choice |
 |---|---|
-| Backend | NestJS, TypeScript |
-| Telegram Bot | Telegraf |
-| Blockchain | viem/ethers.js, Mantle RPC (WebSocket) |
-| AI | Claude API |
-| Queue | BullMQ + Redis |
-| DB | PostgreSQL + Prisma |
+| Backend | NestJS 11, TypeScript 5 |
+| Telegram Bot | Telegraf 4 |
+| Blockchain | viem, Mantle RPC (WebSocket) |
+| AI | Claude API (Week 3) |
+| Queue | BullMQ + Redis (Week 2) |
+| DB | PostgreSQL 16 + Prisma 6 |
 | Price | Bybit API + CoinGecko fallback |
 | Deploy | Railway or Render |
 
-## Commands (from PRD)
-
-- **Build:** not yet established
-- **Test:** not yet established
-- **Run dev:** not yet established
-- **DB:** PostgreSQL + Prisma migrations
-- **Queue:** Redis + BullMQ required locally or via Docker
-
-## Milestones (PRD §13)
+## Milestones
 
 | Week | Focus |
 |---|---|
-| 1 | NestJS scaffold, DB schema, Redis, Telegraf basics, Mantle WebSocket ingestion |
-| 2 | Whale detection, wallet tracking, price service, alert delivery |
-| 3 | Claude API integration, anomaly detection pipeline |
-| 4 | E2E testing, rate limiting, error handling, deploy, demo prep |
+| 1 ✅ | NestJS scaffold, DB schema, Docker, Telegraf, Mantle WS, PriceService |
+| 2 | Whale detection, wallet tracking, alert delivery |
+| 3 | Claude API, anomaly detection pipeline |
+| 4 | E2E testing, rate limiting, error handling, deploy, demo |
 
-Deadline: **June 16, 2026** — Mantle Turing Test Hackathon.
+Deadline: **June 16, 2026**

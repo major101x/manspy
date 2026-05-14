@@ -57,8 +57,12 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
 
   async launch() {
     this.logger.log('Bot launching...');
-    await super.launch();
-    this.logger.log('Bot started');
+    try {
+      await super.launch();
+      this.logger.log('Bot started — waiting for commands');
+    } catch (err) {
+      this.logger.error('Bot failed to launch', err);
+    }
   }
 
   async onModuleDestroy() {
