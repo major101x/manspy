@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf } from 'telegraf';
+import { isAddress } from 'viem';
 import { UserService } from './user.service';
 
 @Injectable()
@@ -52,6 +53,57 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
         + `Threshold: $${user.thresholdUsd.toLocaleString()}\n`
         + `Tracked wallets: ${wallets.length}`,
       );
+    });
+
+    this.command('watch', async (ctx) => {
+      const text = ctx.message.text;
+      const parts = text.split(/\s+/);
+      if (parts.length < 2 || !isAddress(parts[1])) {
+        return ctx.reply('Usage: /watch <address> <label>\nExample: /watch 0x1234...5678 Binance Hot Wallet');
+      }
+      const address = parts[1];
+      const label = parts.slice(2).join(' ') || 'Untitled';
+      await this.userService.addWatch(BigInt(ctx.chat.id), address, label);
+      await ctx.reply(`✅ Now tracking \`${address.slice(0, 10)}…${address.slice(-4)}\` — ${label}`, { parse_mode: 'Markdown' });
+    });
+
+    this.command('unwatch', async (ctx) => {
+      const text = ctx.message.text;
+      const parts = text.split(/\s+/);
+      if (parts.length < 2 || !isAddress(parts[1])) {
+        return ctx.reply('Usage: /unwatch <address>\nExample: /unwatch 0x1234...5678');
+      }
+      const removed = await this.userService.removeWatch(BigInt(ctx.chat.id), parts[1]);
+      if (!removed) return ctx.reply('That address is not in your watch list.');
+      await ctx.reply(`⏹ Stopped tracking \`${parts[1].slice(0, 10)}…${parts[1].slice(-4)}\``, { parse_mode: 'Markdown' });
+    });
+
+    this.command('list', async (ctx) => {
+      const wallets = await this.userService.getTrackedWallets(BigInt(ctx.chat.id));
+      if (wallets.length === 0) return ctx.reply('No wallets tracked. Use /watch to add one.');
+      const lines = wallets.map((w, i) =>
+        `${i + 1}. \`${w.address.slice(0, 10)}…${w.address.slice(-4)}\` — ${w.label}`,
+      );
+      await ctx.reply(`📋 Tracked Wallets\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
+    });
+
+    this.command('threshold', async (ctx) => {
+      const text = ctx.message.text;
+      const parts = text.split(/\s+/);
+      if (parts.length < 2) return ctx.reply('Usage: /threshold <usd_amount>\nExample: /threshold 50000');
+      const amount = parseFloat(parts[1]);
+      if (isNaN(amount) || amount < 0) return ctx.reply('Please provide a valid USD amount.');
+      await this.userService.updateThreshold(BigInt(ctx.chat.id), amount);
+      await ctx.reply(`💰 Alert threshold set to $${amount.toLocaleString()}`);
+    });
+
+    this.command('alerts', async (ctx) => {
+      const text = ctx.message.text;
+      const parts = text.split(/\s+/);
+      if (parts.length < 2 || !['on', 'off'].includes(parts[1])) return ctx.reply('Usage: /alerts on|off');
+      const enabled = parts[1] === 'on';
+      await this.userService.toggleAlerts(BigInt(ctx.chat.id), enabled);
+      await ctx.reply(`🔔 Alerts turned ${enabled ? 'on' : 'off'}`);
     });
   }
 

@@ -25,4 +25,28 @@ export class UserService {
       where: { user: { telegramChatId } },
     });
   }
+
+  async addWatch(telegramChatId: bigint, address: string, label: string) {
+    const user = await this.findOrCreate(telegramChatId);
+    return this.prisma.trackedWallet.create({
+      data: { userId: user.id, address: address.toLowerCase(), label },
+    });
+  }
+
+  async removeWatch(telegramChatId: bigint, address: string) {
+    const user = await this.findOrCreate(telegramChatId);
+    const wallet = await this.prisma.trackedWallet.findFirst({
+      where: { userId: user.id, address: address.toLowerCase() },
+    });
+    if (!wallet) return false;
+    await this.prisma.trackedWallet.delete({ where: { id: wallet.id } });
+    return true;
+  }
+
+  async toggleAlerts(telegramChatId: bigint, enabled: boolean) {
+    return this.prisma.user.update({
+      where: { telegramChatId },
+      data: { alertsEnabled: enabled },
+    });
+  }
 }
