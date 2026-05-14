@@ -1,4 +1,4 @@
-# Mantle Watchdog — Product Requirements Document
+# ManSpy — Product Requirements Document
 
 **Version:** 0.1  
 **Status:** Draft  
@@ -15,13 +15,13 @@ On-chain activity on Mantle moves fast. Whale wallets execute large transfers, s
 
 There is no accessible, real-time, AI-powered alert system specifically built for Mantle that brings these signals directly to where crypto-native users already are — Telegram.
 
-Mantle Watchdog is a Telegram bot that monitors Mantle's chain in real time, detects whale movements and on-chain anomalies using an AI agent, and delivers plain-English alerts to users who care about specific wallets or unusual activity.
+ManSpy is a Telegram bot that monitors Mantle's chain in real time, detects whale movements and on-chain anomalies using an AI agent, and delivers plain-English alerts to users who care about specific wallets or unusual activity.
 
 ---
 
 ## 2. The Human vs. AI Angle
 
-Mantle's hackathon theme is "Human vs. AI." Mantle Watchdog frames this directly:
+Mantle's hackathon theme is "Human vs. AI." ManSpy frames this directly:
 
 **Humans watch dashboards. AI watches the chain.**
 
@@ -349,4 +349,4 @@ The demo needs to show the Human vs. AI mechanic clearly:
 | Whale Alert | Cross-chain whale alerts | No AI analysis, no custom wallet tracking, no Mantle |
 | DeBank | Portfolio tracking | Not alert-focused, no AI layer |
 
-Mantle Watchdog's advantage for this hackathon: it's the only tool built specifically for Mantle with an AI explanation layer and Telegram-native delivery.
+ManSpy's advantage for this hackathon: it's the only tool built specifically for Mantle with an AI explanation layer and Telegram-native delivery.

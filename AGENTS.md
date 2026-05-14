@@ -1,16 +1,10 @@
 # AGENTS.md — manspy
 
-This repository implements **Mantle Watchdog**, a Telegram bot that monitors Mantle Network in real time for whale movements and on-chain anomalies using an AI agent. See the full PRD at `docs/mantle-watchdog-prd.md`.
-
-## State
-
-- Week 1 scaffold complete — NestJS + Prisma + Docker + Telegraf + viem + PriceService.
-- No CI or pre-commit hooks yet.
-- Git initialized on `main`.
+This repository implements **ManSpy**, a Telegram bot that monitors Mantle Network in real time for whale movements and on-chain anomalies using an AI agent. See the full PRD at `docs/manspy-prd.md`.
 
 ## Key Reference
 
-- **`docs/mantle-watchdog-prd.md`** — full architecture, stack, data models, prompt design, milestone plan.
+- **`docs/manspy-prd.md`** — full architecture, stack, data models, prompt design, milestone plan.
 
 ## Commands
 
