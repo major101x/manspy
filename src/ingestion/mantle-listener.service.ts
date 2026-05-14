@@ -34,8 +34,10 @@ export class MantleListenerService implements OnModuleInit {
     this.logger.log('Connected to Mantle RPC');
 
     this.client.watchBlocks({
-      onBlock: async (block) => {
-        if (block.transactions.length === 0) return;
+      onBlock: async (header) => {
+        if (!header.number) return;
+        const full = await this.client.getBlock({ blockNumber: header.number, includeTransactions: true });
+        if (full.transactions.length === 0) return;
 
         const price = await this.priceService.getMntUsd();
         if (price === 0) {
@@ -43,15 +45,13 @@ export class MantleListenerService implements OnModuleInit {
           return;
         }
 
-        for (const hash of block.transactions) {
-          const raw = await this.client.getTransaction({ hash }).catch(() => null);
-          if (!raw) continue;
-
-          const tx = this.normalizer.normalize(raw);
-          const usdValue = Number(formatEther(tx.value)) * price;
+        for (const tx of full.transactions) {
+          if (typeof tx === 'string') continue;
+          const normalized = this.normalizer.normalize(tx);
+          const usdValue = Number(formatEther(normalized.value)) * price;
           if (usdValue < 1) continue;
 
-          await this.detection.processTx(tx, usdValue, (chatId, text) =>
+          await this.detection.processTx(normalized, usdValue, (chatId, text) =>
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown' }),
           );
         }
