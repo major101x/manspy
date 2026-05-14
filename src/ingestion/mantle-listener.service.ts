@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { createPublicClient, webSocket, fallback, http } from 'viem';
+import { createPublicClient, webSocket, fallback, http, formatEther } from 'viem';
 import { mantle } from 'viem/chains';
 import { EnvConfig } from '../config/env.config';
 import { TransactionNormalizerService } from './transaction-normalizer.service';
@@ -9,6 +9,7 @@ export class MantleListenerService implements OnModuleInit {
   private readonly logger = new Logger(MantleListenerService.name);
   private client!: ReturnType<typeof createPublicClient>;
   private unwatchPending: (() => void) | null = null;
+  private unwatchBlocks: (() => void) | null = null;
 
   constructor(
     private env: EnvConfig,
@@ -34,11 +35,28 @@ export class MantleListenerService implements OnModuleInit {
     this.unwatchPending = this.client.watchPendingTransactions({
       onTransactions: (txs) => {
         for (const hash of txs) {
-          this.logger.log(`Pending tx: ${hash}`);
+          this.logger.log(`⚡ Pending tx: ${hash}`);
         }
       },
     });
 
-    this.logger.log('Subscribed to pending transactions');
+    this.unwatchBlocks = this.client.watchBlocks({
+      includeTransactions: true,
+      onBlock: (block) => {
+        if (block.transactions.length > 0) {
+          this.logger.log(`📦 Block #${block.number} — ${block.transactions.length} txs`);
+          for (const tx of block.transactions) {
+            if (typeof tx === 'object') {
+              const value = formatEther(tx.value);
+              this.logger.log(
+                `   └─ ${tx.hash.slice(0, 10)}… ${tx.from.slice(0, 10)}… → ${(tx.to ?? 'deploy').slice(0, 10)}…  ${value} ETH`,
+              );
+            }
+          }
+        }
+      },
+    });
+
+    this.logger.log('Subscribed to pending transactions & new blocks');
   }
 }
