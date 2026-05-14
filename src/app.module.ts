@@ -4,6 +4,7 @@ import { EnvConfigModule } from './config/env-config.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { BotModule } from './bot/bot.module';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { DetectionModule } from './detection/detection.module';
 import { PriceModule } from './price/price.module';
 
 @Module({
@@ -13,6 +14,7 @@ import { PriceModule } from './price/price.module';
     PrismaModule,
     BotModule,
     IngestionModule,
+    DetectionModule,
     PriceModule,
   ],
 })
