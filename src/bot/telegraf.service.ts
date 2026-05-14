@@ -64,7 +64,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       const address = parts[1];
       const label = parts.slice(2).join(' ') || 'Untitled';
       await this.userService.addWatch(BigInt(ctx.chat.id), address, label);
-      await ctx.reply(`✅ Now tracking \`${address.slice(0, 10)}…${address.slice(-4)}\` — ${label}`, { parse_mode: 'Markdown' });
+      await ctx.reply(`✅ Now tracking \`${address}\` — ${label}`, { parse_mode: 'Markdown' });
     });
 
     this.command('unwatch', async (ctx) => {
@@ -75,14 +75,14 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       }
       const removed = await this.userService.removeWatch(BigInt(ctx.chat.id), parts[1]);
       if (!removed) return ctx.reply('That address is not in your watch list.');
-      await ctx.reply(`⏹ Stopped tracking \`${parts[1].slice(0, 10)}…${parts[1].slice(-4)}\``, { parse_mode: 'Markdown' });
+      await ctx.reply(`⏹ Stopped tracking \`${parts[1]}\``, { parse_mode: 'Markdown' });
     });
 
     this.command('list', async (ctx) => {
       const wallets = await this.userService.getTrackedWallets(BigInt(ctx.chat.id));
       if (wallets.length === 0) return ctx.reply('No wallets tracked. Use /watch to add one.');
       const lines = wallets.map((w, i) =>
-        `${i + 1}. \`${w.address.slice(0, 10)}…${w.address.slice(-4)}\` — ${w.label}`,
+        `${i + 1}. \`${w.address}\` — ${w.label}`,
       );
       await ctx.reply(`📋 Tracked Wallets\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
     });
@@ -106,16 +106,16 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       await ctx.reply(`🔔 Alerts turned ${enabled ? 'on' : 'off'}`);
     });
 
-    this.action(/^watch:/, async (ctx) => {
-      const address = ctx.match![0].replace('watch:', '');
+    this.action(/^watch:(.+)/, async (ctx) => {
+      const address = ctx.match![1];
       if (!isAddress(address) || !ctx.chat) return ctx.answerCbQuery('Invalid address');
       await this.userService.addWatch(BigInt(ctx.chat.id), address, 'From Alert');
       await ctx.answerCbQuery('✅ Added to watch list');
     });
 
-    this.action(/^unwatch:/, async (ctx) => {
-      const address = ctx.match![0].replace('unwatch:', '');
-      if (!ctx.chat) return ctx.answerCbQuery('Cannot identify user');
+    this.action(/^unwatch:(.+)/, async (ctx) => {
+      const address = ctx.match![1];
+      if (!isAddress(address) || !ctx.chat) return ctx.answerCbQuery('Invalid address');
       const removed = await this.userService.removeWatch(BigInt(ctx.chat.id), address);
       await ctx.answerCbQuery(removed ? '⏹ Removed from watch list' : 'Not in your watch list');
     });
