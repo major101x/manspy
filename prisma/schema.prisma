@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  telegramChatId BigInt   @unique
+  alertsEnabled  Boolean  @default(true)
+  thresholdUsd   Float    @default(50000)
+  createdAt      DateTime @default(now())
+
+  trackedWallets TrackedWallet[]
+  alertLogs      AlertLog[]
+}
+
+model TrackedWallet {
+  id        String   @id @default(uuid())
+  userId    String
+  address   String
+  label     String   @default("")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AlertLog {
+  id      String   @id @default(uuid())
+  userId  String
+  txHash  String
+  type    String
+  message String
+  sentAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
