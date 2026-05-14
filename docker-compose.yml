@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: mantle_watchdog
+      POSTGRES_DB: manspy
       POSTGRES_USER: watchdog
       POSTGRES_PASSWORD: watchdog_dev
     ports:

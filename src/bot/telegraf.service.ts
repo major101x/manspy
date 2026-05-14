@@ -16,7 +16,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     this.start(async (ctx) => {
       await this.userService.findOrCreate(BigInt(ctx.chat.id));
       await ctx.reply(
-        '👋 Welcome to Mantle Watchdog!\n\n'
+        '👋 Welcome to ManSpy!\n\n'
         + 'I monitor Mantle Network for whale movements and on-chain anomalies.\n\n'
         + 'Commands:\n'
         + '/watch <address> <label> — track a wallet\n'
