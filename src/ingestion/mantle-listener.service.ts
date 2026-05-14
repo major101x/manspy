@@ -40,16 +40,11 @@ export class MantleListenerService implements OnModuleInit {
         if (full.transactions.length === 0) return;
 
         const price = await this.priceService.getMntUsd();
-        if (price === 0) {
-          this.logger.warn('Skipping block — no price data');
-          return;
-        }
 
         for (const tx of full.transactions) {
           if (typeof tx === 'string') continue;
           const normalized = this.normalizer.normalize(tx);
           const usdValue = Number(formatEther(normalized.value)) * price;
-          if (usdValue < 1) continue;
 
           await this.detection.processTx(normalized, usdValue, (chatId, text) =>
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown' }),

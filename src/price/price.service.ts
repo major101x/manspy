@@ -36,7 +36,7 @@ export class PriceService {
   }
 
   private async fetchFromBybit(): Promise<number> {
-    const res = await fetch('https://api.bybit.com/v5/market/tickers?category=spot&symbol=MNTUSDT');
+    const res = await fetch('https://api.bytick.com/v5/market/tickers?category=spot&symbol=MNTUSDT');
     const data = await res.json();
     return parseFloat(data.result.list[0].lastPrice);
   }
@@ -44,6 +44,7 @@ export class PriceService {
   private async fetchFromCoinGecko(): Promise<number> {
     const res = await fetch(
       'https://api.coingecko.com/api/v3/simple/price?ids=mantle&vs_currencies=usd',
+      { headers: process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : undefined },
     );
     const data = await res.json();
     return data.mantle.usd;
