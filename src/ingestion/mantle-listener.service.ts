@@ -24,7 +24,7 @@ export class MantleListenerService implements OnModuleInit {
     this.client = createPublicClient({
       chain: mantle,
       transport: fallback([
-        webSocket(this.env.mantleRpcWss),
+        webSocket(this.env.mantleRpcWss, { timeout: 10_000 }),
         http('https://rpc.mantle.xyz'),
       ]),
       pollingInterval: 4_000,
@@ -35,28 +35,28 @@ export class MantleListenerService implements OnModuleInit {
     this.unwatchPending = this.client.watchPendingTransactions({
       onTransactions: (txs) => {
         for (const hash of txs) {
-          this.logger.log(`⚡ Pending tx: ${hash}`);
+          this.logger.log(`Pending tx: ${hash}`);
         }
       },
     });
 
     this.unwatchBlocks = this.client.watchBlocks({
-      includeTransactions: true,
       onBlock: (block) => {
-        if (block.transactions.length > 0) {
-          this.logger.log(`📦 Block #${block.number} — ${block.transactions.length} txs`);
-          for (const tx of block.transactions) {
-            if (typeof tx === 'object') {
-              const value = formatEther(tx.value);
-              this.logger.log(
-                `   └─ ${tx.hash.slice(0, 10)}… ${tx.from.slice(0, 10)}… → ${(tx.to ?? 'deploy').slice(0, 10)}…  ${value} ETH`,
-              );
-            }
-          }
-        }
+        this.logger.log(`Block #${block.number} — ${block.transactions.length} txs`);
       },
     });
 
     this.logger.log('Subscribed to pending transactions & new blocks');
+
+    setInterval(async () => {
+      try {
+        const num = await this.client.getBlockNumber();
+        const pending = await this.client.getBlock({ blockTag: 'pending' });
+        const pendingCount = (pending.transactions as any[]).length;
+        this.logger.log(`Live — current #${num}, pending: ${pendingCount}`);
+      } catch (err: any) {
+        this.logger.error(`Heartbeat failed: ${err?.message ?? err}`);
+      }
+    }, 15_000);
   }
 }
