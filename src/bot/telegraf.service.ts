@@ -55,14 +55,30 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     });
   }
 
-  async launch() {
-    this.logger.log('Bot launching...');
-    try {
-      await super.launch();
-      this.logger.log('Bot started — waiting for commands');
-    } catch (err) {
-      this.logger.error('Bot failed to launch', err);
-    }
+  initBotPolling() {
+    this.logger.log('Bot launching (polling)...');
+    this.telegram
+      .getMe()
+      .then((me) => {
+        this.botInfo = me;
+        this.logger.log(`@${me.username} authenticated`);
+        return this.launch({ dropPendingUpdates: true });
+      })
+      .then(() => this.logger.log('Bot polling for updates'))
+      .catch((err: any) => this.logger.warn(`Bot polling unavailable: ${err?.message ?? err}`));
+  }
+
+  async initBotWebhook(domain: string): Promise<any> {
+    this.logger.log(`Bot launching (webhook) @ ${domain}...`);
+    const me = await this.telegram.getMe();
+    this.botInfo = me;
+    this.logger.log(`@${me.username} authenticated`);
+
+    const path = `/telegraf`;
+    await this.telegram.setWebhook(`${domain}${path}`);
+    this.logger.log(`Webhook set to ${domain}${path}`);
+
+    return this.webhookCallback(path);
   }
 
   async onModuleDestroy() {
