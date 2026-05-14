@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Markup } from 'telegraf';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
 
@@ -8,7 +9,7 @@ export class DetectionService {
 
   constructor(private prisma: PrismaService) {}
 
-  async processTx(tx: NormalizedTransaction, usdValue: number, sendAlert: (chatId: number, text: string) => Promise<any>) {
+  async processTx(tx: NormalizedTransaction, usdValue: number, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>) {
     const [thresholdUsers, trackedMatches] = await Promise.all([
       this.prisma.user.findMany({ where: { alertsEnabled: true, thresholdUsd: { lte: usdValue } } }),
       this.prisma.trackedWallet.findMany({
@@ -34,8 +35,19 @@ export class DetectionService {
 
     for (const [, match] of matched) {
       const label = trackedMatches.find(w => w.user.id === match.user.id)?.label;
+      const isTracking = trackedMatches.some(w => w.user.id === match.user.id);
       const text = this.formatAlert(tx, usdValue, match.reason, label);
-      await sendAlert(Number(match.user.telegramChatId), text).catch(e =>
+
+      const buttons: any[] = [];
+      if (isTracking) {
+        buttons.push(Markup.button.callback('❌ Unwatch', `unwatch:${tx.from}`));
+      } else {
+        buttons.push(Markup.button.callback('👀 Watch', `watch:${tx.from}`));
+      }
+      buttons.push(Markup.button.url('🔗 Explorer', `https://mantlescan.xyz/tx/${tx.txHash}`));
+      const kb = Markup.inlineKeyboard([buttons]);
+
+      await sendAlert(Number(match.user.telegramChatId), text, kb).catch(e =>
         this.logger.warn(`Failed to send alert to ${match.user.telegramChatId}: ${e?.message}`),
       );
 
@@ -51,7 +63,6 @@ export class DetectionService {
   }
 
   private formatAlert(tx: NormalizedTransaction, usdValue: number, reason: string, label?: string): string {
-    const explorer = `https://mantlescan.xyz/tx/${tx.txHash}`;
     const mntValue = Number(tx.value) / 1e18;
     const lines: string[] = [];
 
@@ -64,11 +75,9 @@ export class DetectionService {
     }
 
     lines.push('');
-    lines.push(`From: \`${tx.from.slice(0, 10)}…${tx.from.slice(-4)}\``);
-    lines.push(`To: \`${(tx.to ?? 'deploy').slice(0, 10)}…${(tx.to ?? '').slice(-4) || 'n/a'}\``);
+    lines.push(`From: \`${tx.from}\``);
+    lines.push(`To: \`${tx.to ?? 'deploy'}\``);
     lines.push(`Value: ${mntValue.toLocaleString()} MNT ($${usdValue.toLocaleString()})`);
-    lines.push('');
-    lines.push(`🔗 [View on Explorer](${explorer})`);
 
     return lines.join('\n');
   }

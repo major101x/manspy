@@ -46,8 +46,8 @@ export class MantleListenerService implements OnModuleInit {
           const normalized = this.normalizer.normalize(tx);
           const usdValue = Number(formatEther(normalized.value)) * price;
 
-          await this.detection.processTx(normalized, usdValue, (chatId, text) =>
-            this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown' }),
+          await this.detection.processTx(normalized, usdValue, (chatId, text, extra) =>
+            this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
           );
         }
       },

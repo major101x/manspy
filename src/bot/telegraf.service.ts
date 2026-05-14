@@ -105,6 +105,20 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       await this.userService.toggleAlerts(BigInt(ctx.chat.id), enabled);
       await ctx.reply(`🔔 Alerts turned ${enabled ? 'on' : 'off'}`);
     });
+
+    this.action(/^watch:/, async (ctx) => {
+      const address = ctx.match![0].replace('watch:', '');
+      if (!isAddress(address) || !ctx.chat) return ctx.answerCbQuery('Invalid address');
+      await this.userService.addWatch(BigInt(ctx.chat.id), address, 'From Alert');
+      await ctx.answerCbQuery('✅ Added to watch list');
+    });
+
+    this.action(/^unwatch:/, async (ctx) => {
+      const address = ctx.match![0].replace('unwatch:', '');
+      if (!ctx.chat) return ctx.answerCbQuery('Cannot identify user');
+      const removed = await this.userService.removeWatch(BigInt(ctx.chat.id), address);
+      await ctx.answerCbQuery(removed ? '⏹ Removed from watch list' : 'Not in your watch list');
+    });
   }
 
   initBot() {
