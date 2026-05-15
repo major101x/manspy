@@ -1,10 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createPublicClient, webSocket, fallback, http, formatEther } from 'viem';
 import { mantle } from 'viem/chains';
-import { TransactionNormalizerService } from './transaction-normalizer.service';
+import { Markup } from 'telegraf';
+import { TransactionNormalizerService, NormalizedTransaction } from './transaction-normalizer.service';
 import { TokenParserService } from './token-parser.service';
 import { PriceService } from '../price/price.service';
 import { DetectionService } from '../detection/detection.service';
+import { AnomalyService, WalletContext } from '../anomaly/anomaly.service';
 import { TelegrafService } from '../bot/telegraf.service';
 
 @Injectable()
@@ -17,6 +19,7 @@ export class MantleListenerService implements OnModuleInit {
     private tokenParser: TokenParserService,
     private priceService: PriceService,
     private detection: DetectionService,
+    private anomaly: AnomalyService,
     private bot: TelegrafService,
   ) {}
 
@@ -76,9 +79,13 @@ export class MantleListenerService implements OnModuleInit {
             txDesc += ` ${Number(formatEther(normalized.value)).toFixed(4)} MNT`;
           }
 
-          await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
+          const messageIds = await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
           );
+
+          for (const [, { messageId, chatId }] of messageIds) {
+            this.fireAnomalyCheck(normalized, usdValue, tokenLabel, chatId, messageId);
+          }
 
           if (usdValue > 0) {
             this.logger.log(`  ✓ ${txDesc} ($${usdValue.toLocaleString()})`);
@@ -88,5 +95,49 @@ export class MantleListenerService implements OnModuleInit {
         }
       },
     });
+  }
+
+  private async fireAnomalyCheck(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, chatId: number, messageId: number) {
+    const wallet = await this.getWalletContext(tx);
+    const result = await this.anomaly.analyze(tx, usdValue, tokenLabel, wallet);
+    if (!result?.anomaly) return;
+
+    const buttons: any[] = [
+      Markup.button.url('🔗 Explorer', `https://mantlescan.xyz/tx/${tx.txHash}`),
+    ];
+    const kb = Markup.inlineKeyboard([buttons]);
+
+    this.bot.telegram.editMessageText(chatId, messageId, undefined,
+      `🤖 AI Analysis:\n${result.explanation}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${tx.txHash})`,
+      { parse_mode: 'Markdown', ...kb },
+    ).catch((e: any) => this.logger.warn(`Failed to edit alert with AI analysis: ${e?.message}`));
+
+    this.logger.log(`AI anomaly (${result.confidence}): ${result.explanation}`);
+  }
+
+  private async getWalletContext(tx: NormalizedTransaction): Promise<WalletContext> {
+    try {
+      const [currentBlock, fromTotal, toTotal] = await Promise.all([
+        this.client.getBlockNumber(),
+        this.client.getTransactionCount({ address: tx.from as `0x${string}` }),
+        tx.to ? this.client.getTransactionCount({ address: tx.to as `0x${string}` }) : Promise.resolve(0),
+      ]);
+
+      const weekAgo = currentBlock - BigInt(300000);
+      const [fromRecent, toRecent] = await Promise.all([
+        this.client.getTransactionCount({ address: tx.from as `0x${string}`, blockNumber: weekAgo }),
+        tx.to ? this.client.getTransactionCount({ address: tx.to as `0x${string}`, blockNumber: weekAgo }) : Promise.resolve(0),
+      ]);
+
+      return {
+        fromTxCount: Number(fromTotal),
+        toTxCount: Number(toTotal),
+        fromRecentTxCount: Number(fromTotal - fromRecent),
+        toRecentTxCount: Number(toTotal - toRecent),
+      };
+    } catch (e: any) {
+      this.logger.warn(`Failed to fetch wallet context: ${e?.message}`);
+      return { fromTxCount: 0, toTxCount: 0, fromRecentTxCount: 0, toRecentTxCount: 0 };
+    }
   }
 }

@@ -5,6 +5,7 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { BotModule } from './bot/bot.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { DetectionModule } from './detection/detection.module';
+import { AnomalyModule } from './anomaly/anomaly.module';
 import { PriceModule } from './price/price.module';
 
 @Module({
@@ -15,6 +16,7 @@ import { PriceModule } from './price/price.module';
     BotModule,
     IngestionModule,
     DetectionModule,
+    AnomalyModule,
     PriceModule,
   ],
 })
