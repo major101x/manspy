@@ -84,7 +84,8 @@ export class MantleListenerService implements OnModuleInit {
           );
 
           for (const [, { messageId, chatId }] of messageIds) {
-            this.fireAnomalyCheck(normalized, usdValue, tokenLabel, chatId, messageId);
+            this.fireAnomalyCheck(normalized, usdValue, tokenLabel, chatId, messageId)
+              .catch((e: any) => this.logger.warn(`Anomaly check failed: ${e?.message}`));
           }
 
           if (usdValue > 0) {
