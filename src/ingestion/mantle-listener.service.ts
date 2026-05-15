@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createPublicClient, webSocket, fallback, http, formatEther } from 'viem';
 import { mantle } from 'viem/chains';
 import { TransactionNormalizerService } from './transaction-normalizer.service';
+import { TokenParserService } from './token-parser.service';
 import { PriceService } from '../price/price.service';
 import { DetectionService } from '../detection/detection.service';
 import { TelegrafService } from '../bot/telegraf.service';
@@ -13,6 +14,7 @@ export class MantleListenerService implements OnModuleInit {
 
   constructor(
     private normalizer: TransactionNormalizerService,
+    private tokenParser: TokenParserService,
     private priceService: PriceService,
     private detection: DetectionService,
     private bot: TelegrafService,
@@ -44,9 +46,24 @@ export class MantleListenerService implements OnModuleInit {
         for (const tx of full.transactions) {
           if (typeof tx === 'string') continue;
           const normalized = this.normalizer.normalize(tx);
-          const usdValue = Number(formatEther(normalized.value)) * price;
+          let usdValue = Number(formatEther(normalized.value)) * price;
+          let tokenLabel: string | undefined;
 
-          await this.detection.processTx(normalized, usdValue, (chatId, text, extra) =>
+          if (usdValue === 0 && normalized.value === 0n) {
+            const receipt = await this.client.getTransactionReceipt({ hash: normalized.txHash as `0x${string}` }).catch(() => null);
+            if (receipt) {
+              const parsed = this.tokenParser.parseReceipt(receipt);
+              if (parsed) {
+                const tokenPrice = parsed.token === 'WMNT' ? price : parsed.token === 'WETH' ? 1800 : parsed.token === 'WBTC' ? 85000 : 1;
+                usdValue = parsed.amount * tokenPrice;
+                tokenLabel = `${parsed.amount.toLocaleString()} ${parsed.token}`;
+              }
+            }
+          }
+
+          if (usdValue === 0) continue;
+
+          await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
           );
         }
