@@ -5,10 +5,11 @@ import { DetectionModule } from '../detection/detection.module';
 import { MantleListenerService } from './mantle-listener.service';
 import { TransactionNormalizerService } from './transaction-normalizer.service';
 import { TokenParserService } from './token-parser.service';
+import { TokenListService } from './token-list.service';
 
 @Module({
   imports: [BotModule, PriceModule, DetectionModule],
-  providers: [MantleListenerService, TransactionNormalizerService, TokenParserService],
+  providers: [MantleListenerService, TransactionNormalizerService, TokenParserService, TokenListService],
   exports: [MantleListenerService, TransactionNormalizerService],
 })
 export class IngestionModule {}
