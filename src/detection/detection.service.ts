@@ -9,7 +9,7 @@ export class DetectionService {
 
   constructor(private prisma: PrismaService) {}
 
-  async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>) {
+  async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>): Promise<Map<string, { messageId: number; chatId: number }>> {
     const [thresholdUsers, trackedMatches] = await Promise.all([
       this.prisma.user.findMany({ where: { alertsEnabled: true, thresholdUsd: { lte: usdValue } } }),
       this.prisma.trackedWallet.findMany({
@@ -18,9 +18,11 @@ export class DetectionService {
       }),
     ]);
 
+    const messageIds = new Map<string, { messageId: number; chatId: number }>();
+
     if (thresholdUsers.length === 0 && trackedMatches.length === 0) {
       if (usdValue > 0) this.logger.log(`No users match tx ${tx.txHash.slice(0, 10)}… ($${usdValue.toLocaleString()})`);
-      return;
+      return messageIds;
     }
 
     const matched = new Map<string, { user: { id: string; telegramChatId: bigint }; reason: string }>();
@@ -48,15 +50,20 @@ export class DetectionService {
         buttons.push(Markup.button.callback('👀 Watch', `watch:${tx.from}`));
       }
       buttons.push(Markup.button.url('🔗 Explorer', `https://mantlescan.xyz/tx/${tx.txHash}`));
+      const kb = Markup.inlineKeyboard([buttons]);
 
-      await sendAlert(Number(match.user.telegramChatId), text, Markup.inlineKeyboard([buttons])).catch(e =>
-        this.logger.warn(`Failed to send alert to ${match.user.telegramChatId}: ${e?.message}`),
-      );
+      const msg = await sendAlert(Number(match.user.telegramChatId), text, kb).catch(e => {
+        this.logger.warn(`Failed to send alert to ${match.user.telegramChatId}: ${e?.message}`);
+        return null;
+      });
+      if (msg?.message_id) messageIds.set(match.user.id, { messageId: msg.message_id, chatId: Number(match.user.telegramChatId) });
 
       await this.prisma.alertLog.create({
         data: { userId: match.user.id, txHash: tx.txHash, type: match.reason, message: text },
       }).catch(e => this.logger.warn(`Failed to log alert: ${e?.message}`));
     }
+
+    return messageIds;
   }
 
   private formatAlert(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, reason: string, label?: string): string {
