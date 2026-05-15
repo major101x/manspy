@@ -18,7 +18,10 @@ export class DetectionService {
       }),
     ]);
 
-    if (thresholdUsers.length === 0 && trackedMatches.length === 0) return;
+    if (thresholdUsers.length === 0 && trackedMatches.length === 0) {
+      if (usdValue > 0) this.logger.log(`No users match tx ${tx.txHash.slice(0, 10)}… ($${usdValue.toLocaleString()})`);
+      return;
+    }
 
     const matched = new Map<string, { user: { id: string; telegramChatId: bigint }; reason: string }>();
 

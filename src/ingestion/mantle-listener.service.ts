@@ -41,6 +41,7 @@ export class MantleListenerService implements OnModuleInit {
         const full = await this.client.getBlock({ blockNumber: header.number, includeTransactions: true });
         if (full.transactions.length === 0) return;
 
+        this.logger.log(`Block #${full.number} — ${full.transactions.length} txs`);
         const price = await this.priceService.getMntUsd();
 
         for (const tx of full.transactions) {
@@ -48,6 +49,7 @@ export class MantleListenerService implements OnModuleInit {
           const normalized = this.normalizer.normalize(tx);
           let usdValue = Number(formatEther(normalized.value)) * price;
           let tokenLabel: string | undefined;
+          let txDesc = `${normalized.txHash.slice(0, 10)}…`;
 
           if (usdValue === 0 && normalized.value === 0n) {
             const receipt = await this.client.getTransactionReceipt({ hash: normalized.txHash as `0x${string}` }).catch(() => null);
@@ -57,15 +59,26 @@ export class MantleListenerService implements OnModuleInit {
                 const tokenPrice = parsed.token === 'WMNT' ? price : parsed.token === 'WETH' ? 1800 : parsed.token === 'WBTC' ? 85000 : 1;
                 usdValue = parsed.amount * tokenPrice;
                 tokenLabel = `${parsed.amount.toLocaleString()} ${parsed.token}`;
+                txDesc += ` ${parsed.amount} ${parsed.token}`;
+              } else {
+                txDesc += ' unknown token';
               }
+            } else {
+              txDesc += ' no receipt';
             }
+          } else {
+            txDesc += ` ${Number(formatEther(normalized.value)).toFixed(4)} MNT`;
           }
-
-          if (usdValue === 0) continue;
 
           await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
           );
+
+          if (usdValue > 0) {
+            this.logger.log(`  ✓ ${txDesc} ($${usdValue.toLocaleString()})`);
+          } else {
+            this.logger.log(`  • ${txDesc} ($0)`);
+          }
         }
       },
     });
