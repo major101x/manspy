@@ -83,8 +83,8 @@ export class MantleListenerService implements OnModuleInit {
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
           );
 
-          for (const [, { messageId, chatId }] of messageIds) {
-            this.fireAnomalyCheck(normalized, usdValue, tokenLabel, chatId, messageId)
+          if (usdValue > 0 && messageIds.size > 0) {
+            this.fireAnomalyCheck(normalized, usdValue, tokenLabel, messageIds)
               .catch((e: any) => this.logger.warn(`Anomaly check failed: ${e?.message}`));
           }
 
@@ -98,7 +98,7 @@ export class MantleListenerService implements OnModuleInit {
     });
   }
 
-  private async fireAnomalyCheck(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, chatId: number, messageId: number) {
+  private async fireAnomalyCheck(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, messageIds: Map<string, { messageId: number; chatId: number; reason: string }>) {
     const wallet = await this.getWalletContext(tx);
     const result = await this.anomaly.analyze(tx, usdValue, tokenLabel, wallet);
     if (!result?.anomaly) return;
@@ -107,11 +107,12 @@ export class MantleListenerService implements OnModuleInit {
       Markup.button.url('🔗 Explorer', `https://mantlescan.xyz/tx/${tx.txHash}`),
     ];
     const kb = Markup.inlineKeyboard([buttons]);
+    const aiText = `🤖 AI Analysis:\n${result.explanation}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${tx.txHash})`;
 
-    this.bot.telegram.editMessageText(chatId, messageId, undefined,
-      `🤖 AI Analysis:\n${result.explanation}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${tx.txHash})`,
-      { parse_mode: 'Markdown', ...kb },
-    ).catch((e: any) => this.logger.warn(`Failed to edit alert with AI analysis: ${e?.message}`));
+    for (const [, { chatId, messageId }] of messageIds) {
+      this.bot.telegram.editMessageText(chatId, messageId, undefined, aiText, { parse_mode: 'Markdown', ...kb })
+        .catch((e: any) => this.logger.warn(`Failed to edit alert: ${e?.message}`));
+    }
 
     this.logger.log(`AI anomaly (${result.confidence}): ${result.explanation}`);
   }
