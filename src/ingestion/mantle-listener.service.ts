@@ -54,14 +54,20 @@ export class MantleListenerService implements OnModuleInit {
           if (usdValue === 0 && normalized.value === 0n) {
             const receipt = await this.client.getTransactionReceipt({ hash: normalized.txHash as `0x${string}` }).catch(() => null);
             if (receipt) {
-              const parsed = this.tokenParser.parseReceipt(receipt);
-              if (parsed) {
-                const tokenPrice = parsed.token === 'WMNT' ? price : parsed.token === 'WETH' ? 1800 : parsed.token === 'WBTC' ? 85000 : 1;
-                usdValue = parsed.amount * tokenPrice;
-                tokenLabel = `${parsed.amount.toLocaleString()} ${parsed.token}`;
-                txDesc += ` ${parsed.amount} ${parsed.token}`;
+              const summary = this.tokenParser.summarize(receipt);
+              if (!summary.hasTransfer) {
+                txDesc += ' contract call';
               } else {
-                txDesc += ' unknown token';
+                const parsed = this.tokenParser.parseReceipt(receipt);
+                if (parsed) {
+                  const tokenPrice = parsed.token === 'WMNT' ? price : parsed.token === 'WETH' ? 1800 : parsed.token === 'WBTC' ? 85000 : 1;
+                  usdValue = parsed.amount * tokenPrice;
+                  tokenLabel = `${parsed.amount.toLocaleString()} ${parsed.token}`;
+                  txDesc += ` ${parsed.amount} ${parsed.token}`;
+                } else {
+                  const syms = summary.transfers.map(t => t.symbol ?? '?').join(',');
+                  txDesc += ` unknown token (${syms})`;
+                }
               }
             } else {
               txDesc += ' no receipt';

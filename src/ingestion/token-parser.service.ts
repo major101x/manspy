@@ -20,6 +20,12 @@ export interface ParsedTransfer {
   decimals: number;
 }
 
+export interface ReceiptSummary {
+  hasTransfer: boolean;
+  hasKnownTransfer: boolean;
+  transfers: { address: string; symbol: string | null }[];
+}
+
 @Injectable()
 export class TokenParserService {
   private readonly logger = new Logger(TokenParserService.name);
@@ -58,5 +64,24 @@ export class TokenParserService {
       }
     }
     return null;
+  }
+
+  summarize(receipt: any): ReceiptSummary {
+    const transfers: { address: string; symbol: string | null }[] = [];
+    let hasTransfer = false;
+
+    for (const log of receipt.logs) {
+      if (log.topics?.[0] !== this.transferSelector) continue;
+      hasTransfer = true;
+      const addr = (log.address ?? '').toLowerCase();
+      const token = this.tokenList.lookup(addr);
+      transfers.push({ address: addr, symbol: token?.symbol ?? null });
+    }
+
+    return {
+      hasTransfer,
+      hasKnownTransfer: transfers.some(t => t.symbol !== null),
+      transfers,
+    };
   }
 }
