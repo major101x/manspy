@@ -37,7 +37,7 @@ export class MantleListenerService implements OnModuleInit {
 
     this.client.watchBlocks({
       onBlock: async (header) => {
-        if (!header.number) return;
+        if (!header?.number) return;
         const full = await this.client.getBlock({ blockNumber: header.number, includeTransactions: true });
         if (full.transactions.length === 0) return;
 
