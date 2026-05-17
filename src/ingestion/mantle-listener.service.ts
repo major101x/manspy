@@ -7,6 +7,8 @@ import { PriceService } from '../price/price.service';
 import { DetectionService } from '../detection/detection.service';
 import { AnomalyService, WalletContext } from '../anomaly/anomaly.service';
 import { TelegrafService } from '../bot/telegraf.service';
+import { AddressLabelService } from '../common/chain-intel/address-label.service';
+import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
 
 @Injectable()
 export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
@@ -22,6 +24,8 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
     private detection: DetectionService,
     private anomaly: AnomalyService,
     private bot: TelegrafService,
+    private labels: AddressLabelService,
+    private buffer: RecentTxBufferService,
   ) {}
 
   async onModuleInit() {
@@ -103,6 +107,11 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
             this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
           );
 
+          // Add to buffer for pattern analysis
+          if (usdValue > 0) {
+            this.buffer.add(normalized, usdValue, tokenLabel);
+          }
+
           if (usdValue > 0 && messageIds.size > 0) {
             this.fireAnomalyCheck(normalized, usdValue, tokenLabel, messageIds)
               .catch((e: any) => this.logger.warn(`Anomaly check failed: ${e?.message}`));
@@ -118,19 +127,40 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async fireAnomalyCheck(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, messageIds: Map<string, { messageId: number; chatId: number; reason: string; text: string }>) {
+  private async fireAnomalyCheck(
+    tx: NormalizedTransaction,
+    usdValue: number,
+    tokenLabel: string | undefined,
+    messageIds: Map<string, { messageId: number; chatId: number; reason: string; text: string }>,
+  ) {
     const wallet = await this.getWalletContext(tx);
-    const result = await this.anomaly.analyze(tx, usdValue, tokenLabel, wallet);
-    if (!result?.anomaly) return;
 
-    const aiBlock = `\n\n🤖 AI Analysis:\n${result.explanation}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${tx.txHash})`;
+    await this.anomaly.analyze(
+      tx,
+      usdValue,
+      tokenLabel,
+      wallet,
+      messageIds,
+      (result, batchSize) => {
+        if (!result) return;
 
-    for (const [, { chatId, messageId, text }] of messageIds) {
-      this.bot.telegram.editMessageText(chatId, messageId, undefined, text + aiBlock, { parse_mode: 'Markdown' })
-        .catch((e: any) => this.logger.warn(`Failed to edit alert: ${e?.message}`));
-    }
+        const latestTxHash = tx.txHash;
+        const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${latestTxHash})`;
 
-    this.logger.log(`AI anomaly (${result.confidence}): ${result.explanation}`);
+        for (const [, { chatId, messageId, text }] of messageIds) {
+          // Skip if already edited
+          if (text.includes('🤖 Pattern:')) continue;
+
+          this.bot.telegram
+            .editMessageText(chatId, messageId, undefined, text + aiBlock, {
+              parse_mode: 'Markdown',
+            })
+            .catch((e: any) =>
+              this.logger.warn(`Failed to edit alert: ${e?.message}`),
+            );
+        }
+      },
+    );
   }
 
   private async getWalletContext(tx: NormalizedTransaction): Promise<WalletContext> {
