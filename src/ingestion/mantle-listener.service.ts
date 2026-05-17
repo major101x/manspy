@@ -1,7 +1,6 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { createPublicClient, webSocket, fallback, http, formatEther } from 'viem';
 import { mantle } from 'viem/chains';
-import { Markup } from 'telegraf';
 import { TransactionNormalizerService, NormalizedTransaction } from './transaction-normalizer.service';
 import { TokenParserService } from './token-parser.service';
 import { PriceService } from '../price/price.service';
@@ -10,9 +9,11 @@ import { AnomalyService, WalletContext } from '../anomaly/anomaly.service';
 import { TelegrafService } from '../bot/telegraf.service';
 
 @Injectable()
-export class MantleListenerService implements OnModuleInit {
+export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MantleListenerService.name);
   private client!: ReturnType<typeof createPublicClient>;
+  private unwatch: (() => void) | null = null;
+  private stopped = false;
 
   constructor(
     private normalizer: TransactionNormalizerService,
@@ -24,10 +25,29 @@ export class MantleListenerService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.connect();
+    await this.connectWithRetry();
+  }
+
+  onModuleDestroy() {
+    this.stopped = true;
+    this.unwatch?.();
+  }
+
+  private async connectWithRetry(retries = 0) {
+    try {
+      await this.connect();
+    } catch (e: any) {
+      if (this.stopped) return;
+      const delay = Math.min(1000 * 2 ** retries, 30000);
+      this.logger.warn(`Connection failed (${e?.message}), retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+      if (!this.stopped) await this.connectWithRetry(retries + 1);
+    }
   }
 
   private async connect() {
+    this.unwatch?.();
+
     this.client = createPublicClient({
       chain: mantle,
       transport: fallback([
@@ -38,7 +58,7 @@ export class MantleListenerService implements OnModuleInit {
 
     this.logger.log('Connected to Mantle RPC');
 
-    this.client.watchBlocks({
+    this.unwatch = this.client.watchBlocks({
       onBlock: async (header) => {
         if (!header?.number) return;
         const full = await this.client.getBlock({ blockNumber: header.number, includeTransactions: true });

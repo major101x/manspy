@@ -4,29 +4,35 @@ import Redis from 'ioredis';
 @Injectable()
 export class PriceService {
   private readonly logger = new Logger(PriceService.name);
-  private readonly cache: Redis;
+  private readonly cache: Redis | null;
   private readonly CACHE_KEY = 'price:mnt_usd';
   private readonly CACHE_TTL = 60;
 
   constructor() {
-    this.cache = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+    const url = process.env.REDIS_URL;
+    if (url) {
+      this.cache = new Redis(url);
+      this.cache.on('error', () => {});
+    }
   }
 
   async getMntUsd(): Promise<number> {
-    const cached = await this.cache.get(this.CACHE_KEY);
-    if (cached) {
-      return parseFloat(cached);
+    if (this.cache) {
+      const cached = await this.cache.get(this.CACHE_KEY);
+      if (cached) {
+        return parseFloat(cached);
+      }
     }
 
     try {
       const price = await this.fetchFromBybit();
-        await this.cache.set(this.CACHE_KEY, price.toString(), 'EX', this.CACHE_TTL);
+      if (this.cache) await this.cache.set(this.CACHE_KEY, price.toString(), 'EX', this.CACHE_TTL);
       return price;
     } catch (err) {
       this.logger.warn('Bybit fetch failed, trying CoinGecko', err);
       try {
         const price = await this.fetchFromCoinGecko();
-      await this.cache.set(this.CACHE_KEY, price.toString(), 'EX', this.CACHE_TTL);
+        if (this.cache) await this.cache.set(this.CACHE_KEY, price.toString(), 'EX', this.CACHE_TTL);
         return price;
       } catch (fallbackErr) {
         this.logger.error('All price sources failed', fallbackErr);

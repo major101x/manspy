@@ -42,9 +42,11 @@ export class AnomalyService {
         },
       });
 
-      return JSON.parse(response.text ?? '{}');
+      const parsed = JSON.parse(response.text ?? '{}');
+      this.logger.log(`Gemini result for ${tx.txHash.slice(0, 10)}…: ${JSON.stringify(parsed)}`);
+      return parsed;
     } catch (e: any) {
-      this.logger.warn(`Gemini analysis failed: ${e?.message}`);
+      this.logger.warn(`Gemini analysis failed for ${tx.txHash.slice(0, 10)}…: ${e?.message}`);
       return null;
     }
   }
