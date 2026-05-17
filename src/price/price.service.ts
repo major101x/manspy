@@ -25,17 +25,17 @@ export class PriceService {
     }
 
     try {
-      const price = await this.fetchFromBybit();
+      const price = await this.fetchFromCoinGecko();
       if (this.cache) await this.cache.set(this.CACHE_KEY, price.toString(), 'EX', this.CACHE_TTL);
       return price;
     } catch (err) {
-      this.logger.warn('Bybit fetch failed, trying CoinGecko', err);
+      this.logger.warn('CoinGecko failed, trying Bybit', err?.message);
       try {
-        const price = await this.fetchFromCoinGecko();
+        const price = await this.fetchFromBybit();
         if (this.cache) await this.cache.set(this.CACHE_KEY, price.toString(), 'EX', this.CACHE_TTL);
         return price;
       } catch (fallbackErr) {
-        this.logger.error('All price sources failed', fallbackErr);
+        this.logger.error('All price sources failed', fallbackErr?.message);
         return 0;
       }
     }
