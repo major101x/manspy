@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Telegraf } from 'telegraf';
 import { isAddress } from 'viem';
 import { UserService } from './user.service';
+import { RateLimitService } from '../detection/rate-limit.service';
 
 @Injectable()
 export class TelegrafService extends Telegraf implements OnModuleDestroy {
@@ -11,6 +12,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
   constructor(
     config: ConfigService,
     private userService: UserService,
+    private rateLimit: RateLimitService,
   ) {
     super(config.get<string>('TELEGRAM_BOT_TOKEN')!);
 
@@ -47,11 +49,14 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     this.command('status', async (ctx) => {
       const user = await this.userService.findOrCreate(BigInt(ctx.chat.id));
       const wallets = await this.userService.getTrackedWallets(BigInt(ctx.chat.id));
+      const rate = this.rateLimit.getStatus(user.id);
       await ctx.reply(
         `📊 Your Settings\n\n`
         + `Alerts: ${user.alertsEnabled ? '✅ On' : '❌ Off'}\n`
         + `Threshold: $${user.thresholdUsd.toLocaleString()}\n`
-        + `Tracked wallets: ${wallets.length}`,
+        + `Tracked wallets: ${wallets.length}\n`
+        + `Rate limit: ${rate.count}/${rate.limit} this hour`
+        + (rate.resetInMinutes > 0 ? ` (resets in ${rate.resetInMinutes}min)` : ''),
       );
     });
 

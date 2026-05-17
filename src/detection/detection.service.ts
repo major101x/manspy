@@ -2,12 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Markup } from 'telegraf';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
+import { RateLimitService } from './rate-limit.service';
 
 @Injectable()
 export class DetectionService {
   private readonly logger = new Logger(DetectionService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private rateLimit: RateLimitService,
+  ) {}
 
   async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>): Promise<Map<string, { messageId: number; chatId: number; reason: string; text: string }>> {
     const [thresholdUsers, trackedMatches] = await Promise.all([
@@ -40,6 +44,19 @@ export class DetectionService {
     }
 
     for (const [, match] of matched) {
+      const rateCheck = this.rateLimit.check(match.user.id);
+      if (!rateCheck.allowed) {
+        if (this.rateLimit.markNotified(match.user.id)) {
+          await sendAlert(
+            Number(match.user.telegramChatId),
+            `⏳ Rate limit: 10 alerts/hour reached. Resets in ${rateCheck.resetInMinutes}min. Use /status to check your limit.`,
+            {},
+          ).catch((e) => this.logger.warn(`Failed to send rate limit msg: ${e?.message}`));
+        }
+        this.logger.log(`Rate limited user ${match.user.id}`);
+        continue;
+      }
+
       const label = trackedMatches.find(w => w.user.id === match.user.id)?.label;
       const text = this.formatAlert(tx, usdValue, tokenLabel, match.reason, label);
 

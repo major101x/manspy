@@ -37,12 +37,27 @@ export class AnomalyService {
   private ai: GoogleGenAI;
   private pendingBatches = new Map<string, PendingBatch>();
   private readonly batchWindowMs = 3 * 60 * 1000; // 3 minutes
+  private recentResults: Array<{
+    timestamp: number;
+    pairKey: string;
+    result: AnomalyResult | null;
+    batchSize: number;
+  }> = [];
 
   constructor(
     private labels: AddressLabelService,
     private buffer: RecentTxBufferService,
   ) {
     this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  }
+
+  getRecentResults(limit = 5) {
+    return this.recentResults.slice(-limit).map((r) => ({
+      time: new Date(r.timestamp).toISOString(),
+      pair: r.pairKey,
+      batchSize: r.batchSize,
+      ...r.result,
+    }));
   }
 
   /**
@@ -138,6 +153,9 @@ export class AnomalyService {
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
       };
 
+      this.recentResults.push({ timestamp: Date.now(), pairKey, result, batchSize: batch.txs.length });
+      if (this.recentResults.length > 20) this.recentResults.shift();
+
       onResult(result, batch.txs.length);
 
       this.logger.log(
@@ -147,6 +165,8 @@ export class AnomalyService {
       this.logger.warn(
         `Gemini batch analysis failed for ${pairKey}: ${e?.message}`,
       );
+      this.recentResults.push({ timestamp: Date.now(), pairKey, result: null, batchSize: batch.txs.length });
+      if (this.recentResults.length > 20) this.recentResults.shift();
       onResult(null, batch.txs.length);
     }
   }
