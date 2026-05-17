@@ -98,19 +98,15 @@ export class MantleListenerService implements OnModuleInit {
     });
   }
 
-  private async fireAnomalyCheck(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, messageIds: Map<string, { messageId: number; chatId: number; reason: string }>) {
+  private async fireAnomalyCheck(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, messageIds: Map<string, { messageId: number; chatId: number; reason: string; text: string }>) {
     const wallet = await this.getWalletContext(tx);
     const result = await this.anomaly.analyze(tx, usdValue, tokenLabel, wallet);
     if (!result?.anomaly) return;
 
-    const buttons: any[] = [
-      Markup.button.url('🔗 Explorer', `https://mantlescan.xyz/tx/${tx.txHash}`),
-    ];
-    const kb = Markup.inlineKeyboard([buttons]);
-    const aiText = `🤖 AI Analysis:\n${result.explanation}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${tx.txHash})`;
+    const aiBlock = `\n\n🤖 AI Analysis:\n${result.explanation}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${tx.txHash})`;
 
-    for (const [, { chatId, messageId }] of messageIds) {
-      this.bot.telegram.editMessageText(chatId, messageId, undefined, aiText, { parse_mode: 'Markdown', ...kb })
+    for (const [, { chatId, messageId, text }] of messageIds) {
+      this.bot.telegram.editMessageText(chatId, messageId, undefined, text + aiBlock, { parse_mode: 'Markdown' })
         .catch((e: any) => this.logger.warn(`Failed to edit alert: ${e?.message}`));
     }
 
