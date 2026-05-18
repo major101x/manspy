@@ -126,16 +126,65 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     });
   }
 
-  initBot() {
+  private appRef: any;
+
+  setAppRef(app: any) {
+    this.appRef = app;
+  }
+
+  async initBotWithRetry(retries = 0) {
     this.logger.log('Bot starting...');
-    this.telegram
-      .getMe()
-      .then((me) => {
-        this.botInfo = me;
-        this.logger.log(`@${me.username} authenticated, starting launch`);
-        this.launch({ dropPendingUpdates: true });
-      })
-      .catch((err: any) => this.logger.warn(`Bot unavailable: ${err?.message ?? err}`));
+    try {
+      const me = await this.telegram.getMe();
+      this.botInfo = me;
+      this.logger.log(`@${me.username} authenticated, starting launch`);
+      this.launch({ dropPendingUpdates: true });
+      this.setupRuntimeErrorHandling();
+    } catch (err: any) {
+      if (retries >= 5) {
+        this.logger.error(`Bot failed to start after 5 retries: ${err?.message ?? err}`);
+        await this.gracefulCrash();
+        return;
+      }
+      const delay = Math.min(1000 * 2 ** retries, 30000);
+      this.logger.warn(`Bot unavailable (${err?.message}), retrying in ${delay}ms...`);
+      setTimeout(() => this.initBotWithRetry(retries + 1), delay);
+    }
+  }
+
+  private setupRuntimeErrorHandling() {
+    this.catch((err: any) => {
+      const message = err?.message ?? String(err);
+      this.logger.error(`Telegraf error: ${message}`);
+      const msg = message.toLowerCase();
+      const isFatal = msg.includes('econnreset')
+        || msg.includes('socket hang up')
+        || msg.includes('401')
+        || msg.includes('unauthorized')
+        || msg.includes('not found');
+
+      if (isFatal) {
+        this.logger.error('Fatal bot error detected, shutting down...');
+        this.gracefulCrash();
+      }
+    });
+  }
+
+  private async gracefulCrash() {
+    try {
+      if (this.appRef) {
+        this.logger.log('Attempting graceful shutdown...');
+        await this.appRef.close();
+      }
+    } catch (e) {
+      this.logger.warn(`Graceful shutdown failed: ${e?.message}`);
+    } finally {
+      process.exit(1);
+    }
+  }
+
+  isHealthy(): boolean {
+    return this.botInfo !== undefined;
   }
 
   async onModuleDestroy() {
