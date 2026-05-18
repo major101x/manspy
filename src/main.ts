@@ -7,10 +7,17 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const bot = app.get(TelegrafService);
-  bot.initBot();
+  bot.setAppRef(app);
+  bot.initBotWithRetry();
 
   const expressApp = app.getHttpAdapter().getInstance() as express.Application;
-  expressApp.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
+  expressApp.get('/health', (_req: express.Request, res: express.Response) => {
+    const botHealthy = bot.isHealthy();
+    if (!botHealthy) {
+      return res.status(503).json({ ok: false, reason: 'bot_not_running' });
+    }
+    res.json({ ok: true });
+  });
 
   app.enableShutdownHooks();
 
