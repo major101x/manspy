@@ -163,7 +163,7 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
         if (!result) return;
 
         const latestTxHash = tx.txHash;
-        const safeSummary = result.summary.replace(/[\\[\\]()]/g, '\\$&');
+        const safeSummary = result.summary.replace(/([*_[\]()~`#+=|{}.!-])/g, '\\$1');
         const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${safeSummary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${latestTxHash})`;
 
         for (const [, { chatId, messageId, text }] of messageIds) {
