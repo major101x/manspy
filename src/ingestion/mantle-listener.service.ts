@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { createPublicClient, webSocket, fallback, http, formatEther } from 'viem';
 import { mantle } from 'viem/chains';
+import { BlockNotFoundError } from 'viem';
 import { TransactionNormalizerService, NormalizedTransaction } from './transaction-normalizer.service';
 import { TokenParserService } from './token-parser.service';
 import { PriceService } from '../price/price.service';
@@ -64,64 +65,81 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
 
     this.unwatch = this.client.watchBlocks({
       onBlock: async (header) => {
-        if (!header?.number) return;
-        const full = await this.client.getBlock({ blockNumber: header.number, includeTransactions: true });
-        if (full.transactions.length === 0) return;
+        try {
+          if (!header?.number) return;
 
-        this.logger.log(`Block #${full.number} — ${full.transactions.length} txs`);
-        const price = await this.priceService.getMntUsd();
+          let full;
+          try {
+            full = await this.client.getBlock({ blockNumber: header.number, includeTransactions: true });
+          } catch (e) {
+            if (e instanceof BlockNotFoundError) {
+              this.logger.warn(`Block #${header.number} not found yet, skipping`);
+              return;
+            }
+            throw e;
+          }
 
-        for (const tx of full.transactions) {
-          if (typeof tx === 'string') continue;
-          const normalized = this.normalizer.normalize(tx);
-          let usdValue = Number(formatEther(normalized.value)) * price;
-          let tokenLabel: string | undefined;
-          let txDesc = `${normalized.txHash.slice(0, 10)}…`;
+          if (!full?.transactions?.length) return;
 
-          if (usdValue === 0 && normalized.value === 0n) {
-            const receipt = await this.client.getTransactionReceipt({ hash: normalized.txHash as `0x${string}` }).catch(() => null);
-            if (receipt) {
-              const summary = this.tokenParser.summarize(receipt);
-              if (!summary.hasTransfer) {
-                txDesc += ' contract call';
-              } else {
-                const parsed = this.tokenParser.parseReceipt(receipt);
-                if (parsed) {
-                  const tokenPrice = parsed.token === 'WMNT' ? price : parsed.token === 'WETH' ? 1800 : parsed.token === 'WBTC' ? 85000 : 1;
-                  usdValue = parsed.amount * tokenPrice;
-                  tokenLabel = `${parsed.amount.toLocaleString()} ${parsed.token}`;
-                  txDesc += ` ${parsed.amount} ${parsed.token}`;
+          this.logger.log(`Block #${full.number} — ${full.transactions.length} txs`);
+          const price = await this.priceService.getMntUsd();
+
+          for (const tx of full.transactions) {
+            if (typeof tx === 'string') continue;
+            const normalized = this.normalizer.normalize(tx);
+            let usdValue = Number(formatEther(normalized.value)) * price;
+            let tokenLabel: string | undefined;
+            let txDesc = `${normalized.txHash.slice(0, 10)}…`;
+
+            if (usdValue === 0 && normalized.value === 0n) {
+              const receipt = await this.client.getTransactionReceipt({ hash: normalized.txHash as `0x${string}` }).catch(() => null);
+              if (receipt) {
+                const summary = this.tokenParser.summarize(receipt);
+                if (!summary.hasTransfer) {
+                  txDesc += ' contract call';
                 } else {
-                  const syms = summary.transfers.map(t => t.symbol ?? '?').join(',');
-                  txDesc += ` unknown token (${syms})`;
+                  const parsed = this.tokenParser.parseReceipt(receipt);
+                  if (parsed) {
+                    const tokenPrice = parsed.token === 'WMNT' ? price : parsed.token === 'WETH' ? 1800 : parsed.token === 'WBTC' ? 85000 : 1;
+                    usdValue = parsed.amount * tokenPrice;
+                    tokenLabel = `${parsed.amount.toLocaleString()} ${parsed.token}`;
+                    txDesc += ` ${parsed.amount} ${parsed.token}`;
+                  } else {
+                    const syms = summary.transfers.map(t => t.symbol ?? '?').join(',');
+                    txDesc += ` unknown token (${syms})`;
+                  }
                 }
+              } else {
+                txDesc += ' no receipt';
               }
             } else {
-              txDesc += ' no receipt';
+              txDesc += ` ${Number(formatEther(normalized.value)).toFixed(4)} MNT`;
             }
-          } else {
-            txDesc += ` ${Number(formatEther(normalized.value)).toFixed(4)} MNT`;
-          }
 
-          const messageIds = await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
-            this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
+            const messageIds = await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
+              this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
+            );
+
+            // Add to buffer for pattern analysis
+            if (usdValue > 0) {
+              this.buffer.add(normalized, usdValue, tokenLabel);
+            }
+
+            if (usdValue > 0 && messageIds.size > 0) {
+              this.fireAnomalyCheck(normalized, usdValue, tokenLabel, messageIds)
+                .catch((e: any) => this.logger.warn(`Anomaly check failed: ${e?.message}`));
+            }
+
+            if (usdValue > 0) {
+              this.logger.log(`  ✓ ${txDesc} ($${usdValue.toLocaleString()})`);
+            } else {
+              this.logger.log(`  • ${txDesc} ($0)`);
+            }
+          }
+        } catch (e: any) {
+          this.logger.error(
+            `Unhandled error processing block #${header?.number}: ${e?.message ?? e}`
           );
-
-          // Add to buffer for pattern analysis
-          if (usdValue > 0) {
-            this.buffer.add(normalized, usdValue, tokenLabel);
-          }
-
-          if (usdValue > 0 && messageIds.size > 0) {
-            this.fireAnomalyCheck(normalized, usdValue, tokenLabel, messageIds)
-              .catch((e: any) => this.logger.warn(`Anomaly check failed: ${e?.message}`));
-          }
-
-          if (usdValue > 0) {
-            this.logger.log(`  ✓ ${txDesc} ($${usdValue.toLocaleString()})`);
-          } else {
-            this.logger.log(`  • ${txDesc} ($0)`);
-          }
         }
       },
     });
