@@ -55,7 +55,21 @@ export class TestController {
         toRecentTxCount: 0,
       };
       this.anomaly
-        .analyze(fakeTx, usdValue, tokenLabel, wallet, messageIds, () => {})
+        .analyze(fakeTx, usdValue, tokenLabel, wallet, messageIds, (result, _batchSize) => {
+          if (!result) return;
+
+          const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${fakeTx.txHash})`;
+
+          for (const [, { chatId, messageId, text }] of messageIds) {
+            if (text.includes('🤖 Pattern:')) continue;
+
+            this.bot.telegram
+              .editMessageText(chatId, messageId, undefined, text + aiBlock, {
+                parse_mode: 'Markdown',
+              })
+              .catch((e: any) => console.error('Failed to edit alert:', e?.message));
+          }
+        })
         .catch((e) => console.error('Anomaly check failed:', e));
     }
 
