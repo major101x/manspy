@@ -163,7 +163,8 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
         if (!result) return;
 
         const latestTxHash = tx.txHash;
-        const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${latestTxHash})`;
+        const safeSummary = result.summary.replace(/([[\]()])/g, '\\$1');
+        const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${safeSummary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${latestTxHash})`;
 
         for (const [, { chatId, messageId, text }] of messageIds) {
           // Skip if already edited

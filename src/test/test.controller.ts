@@ -75,7 +75,8 @@ export class TestController {
 
           this.logger.log(`[TEST] Anomaly result for tx ${fakeTx.txHash}: pattern=${result.pattern}, risk=${result.risk_level}, confidence=${result.confidence}, batchSize=${batchSize}`);
 
-          const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${fakeTx.txHash})`;
+          const safeSummary = result.summary.replace(/([[\]()])/g, '\\$1');
+          const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${safeSummary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${fakeTx.txHash})`;
 
           for (const [, { chatId, messageId, text }] of messageIds) {
             if (text.includes('🤖 Pattern:')) continue;
