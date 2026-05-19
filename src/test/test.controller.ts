@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Body } from '@nestjs/common';
 import { DetectionService } from '../detection/detection.service';
 import { AnomalyService } from '../anomaly/anomaly.service';
 import { TelegrafService } from '../bot/telegraf.service';
@@ -23,10 +23,6 @@ export class TestController {
 
   @Post('alert')
   async testAlert(@Body() dto: TestAlertDto) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('Test endpoints disabled in production');
-    }
-
     const fakeTx: NormalizedTransaction = {
       txHash: `0xtest${Date.now().toString(16)}`,
       from: '0x0000004eba872864a71b957180eb17dff71bb8f1',
@@ -74,9 +70,6 @@ export class TestController {
 
   @Get('last-anomaly')
   getLastAnomalies() {
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('Test endpoints disabled in production');
-    }
     return this.anomaly.getRecentResults(5);
   }
 }
