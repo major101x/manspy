@@ -5,6 +5,7 @@ This repository implements **ManSpy**, a Telegram bot that monitors Mantle Netwo
 ## Key Reference
 
 - **`docs/manspy-prd.md`** — full architecture, stack, data models, prompt design, milestone plan.
+- **`tasks.md`** — remaining todo items before hackathon submission (June 16, 2026). Check this file at the start of every session.
 
 ## Commands
 
@@ -49,11 +50,13 @@ Mantle RPC (WebSocket) → IngestionModule → DetectionModule → AlertModule �
 
 ## Milestones
 
-| Week | Focus |
-|---|---|
-| 1 ✅ | NestJS scaffold, DB schema, Docker, Telegraf, Mantle WS, PriceService |
-| 2 | Whale detection, wallet tracking, alert delivery |
-| 3 | Claude API, anomaly detection pipeline |
-| 4 | E2E testing, rate limiting, error handling, deploy, demo |
+| Week | Focus | Status |
+|---|---|---|
+| 1 | NestJS scaffold, DB schema, Docker, Telegraf, Mantle WS, PriceService | ✅ Done |
+| 2 | Whale detection, wallet tracking, alert delivery | ✅ Done |
+| 3 | Gemini API, anomaly detection pipeline, address labels, batching | ✅ Done |
+| 4 | E2E testing, rate limiting, error handling, deploy, demo script | ✅ Done |
+
+**Remaining:** Record demo video, submit hackathon entry, Nansen integration (if credits arrive)
 
 Deadline: **June 16, 2026**
