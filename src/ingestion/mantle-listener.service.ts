@@ -163,17 +163,14 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
         if (!result) return;
 
         const latestTxHash = tx.txHash;
-        const safeSummary = result.summary.replace(/([*_[\]()~`#+=|{}.!-])/g, '\\$1');
-        const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${safeSummary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${latestTxHash})`;
+        const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 https://mantlescan.xyz/tx/${latestTxHash}`;
 
         for (const [, { chatId, messageId, text }] of messageIds) {
           // Skip if already edited
           if (text.includes('🤖 Pattern:')) continue;
 
           this.bot.telegram
-            .editMessageText(chatId, messageId, undefined, text + aiBlock, {
-              parse_mode: 'Markdown',
-            })
+            .editMessageText(chatId, messageId, undefined, text + aiBlock)
             .catch((e: any) =>
               this.logger.warn(`Failed to edit alert: ${e?.message}`),
             );
