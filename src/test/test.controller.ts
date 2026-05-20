@@ -75,17 +75,14 @@ export class TestController {
 
           this.logger.log(`[TEST] Anomaly result for tx ${fakeTx.txHash}: pattern=${result.pattern}, risk=${result.risk_level}, confidence=${result.confidence}, batchSize=${batchSize}`);
 
-          const safeSummary = result.summary.replace(/([*_[\]()~`#+=|{}.!-])/g, '\\$1');
-          const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${safeSummary}\n\n🔗 [View on Explorer](https://mantlescan.xyz/tx/${fakeTx.txHash})`;
+          const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 https://mantlescan.xyz/tx/${fakeTx.txHash}`;
 
           for (const [, { chatId, messageId, text }] of messageIds) {
             if (text.includes('🤖 Pattern:')) continue;
 
             this.logger.log(`[TEST] Editing Telegram message ${messageId} for chatId=${chatId}`);
             this.bot.telegram
-              .editMessageText(chatId, messageId, undefined, text + aiBlock, {
-                parse_mode: 'Markdown',
-              })
+              .editMessageText(chatId, messageId, undefined, text + aiBlock)
               .catch((e: any) => this.logger.error(`[TEST] Failed to edit alert: ${e?.message}`));
           }
         })
