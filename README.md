@@ -82,6 +82,22 @@ The video demonstrates: real-time alert firing, AI analysis appending, wallet tr
 - **Explorer links:** Every alert includes a link to `mantlescan.xyz` for transaction verification
 - **Native token pricing:** MNT/USD via CoinGecko API with 60-second Redis caching
 - **Token parsing:** Dynamic token list from `token-list.mantle.xyz` with 40-token fallback for ERC-20 identification
+- **Smart contract:** Alert records logged on-chain for permanent auditability
+
+---
+
+## Smart Contract
+
+**Network:** Mantle Sepolia Testnet  
+**Address:** `0xBefF514A396A4c500d6C15fEF536875Ff9f22711`  
+**Explorer:** [Verified on MantleScan](https://sepolia.mantlescan.xyz/address/0xBefF514A396A4c500d6C15fEF536875Ff9f22711)
+
+The `ManSpyAlertLog` contract permanently records every AI anomaly analysis on Mantle:
+- `logAlert(txHash, pattern, riskLevel, confidence)` — callable by the AI agent after each analysis
+- `records(id)` — public view function to query any historical alert
+- `getRecordCount()` — total number of logged alerts
+
+Every Gemini AI decision is now auditable on-chain, creating a verifiable track record for the agent.
 
 ---
 
@@ -149,6 +165,8 @@ npm run start:dev
 - `DATABASE_URL` — PostgreSQL connection string
 - `REDIS_URL` — Redis connection string (optional, for price caching)
 - `PORT` — HTTP server port (default 3000)
+- `PRIVATE_KEY` — Deployer wallet for on-chain logging (with Mantle Sepolia ETH)
+- `CONTRACT_ADDRESS` — `0xBefF514A396A4c500d6C15fEF536875Ff9f22711`
 
 ---
 
@@ -194,9 +212,18 @@ src/
 ├── anomaly/                # Gemini AI analysis + batching
 ├── ingestion/              # Mantle WebSocket listener + token parsing
 ├── price/                  # MNT/USD price service
+├── web3/                   # On-chain alert logging (Mantle Sepolia)
 ├── test/                   # E2E test endpoints
 ├── app.module.ts
 └── main.ts
+
+contracts/
+├── ManSpyAlertLog.sol      # Solidity alert logging contract
+└── ManSpyAlertLog.json     # Compiled ABI + bytecode
+
+scripts/
+├── compile.ts              # Compile contract with solc
+└── deploy.ts               # Deploy to Mantle Sepolia
 ```
 
 ---

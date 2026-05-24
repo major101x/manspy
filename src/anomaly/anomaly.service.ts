@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
 import { AddressLabelService } from '../common/chain-intel/address-label.service';
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
+import { AlertLogService } from '../web3/alert-log.service';
 
 export interface WalletContext {
   fromTxCount: number;
@@ -47,6 +48,7 @@ export class AnomalyService {
   constructor(
     private labels: AddressLabelService,
     private buffer: RecentTxBufferService,
+    private alertLog: AlertLogService,
   ) {
     this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   }
@@ -157,6 +159,11 @@ export class AnomalyService {
       if (this.recentResults.length > 20) this.recentResults.shift();
 
       onResult(result, batch.txs.length);
+
+      // Log to blockchain
+      this.alertLog
+        .logAlert(latest.tx.txHash, result.pattern, result.risk_level, result.confidence)
+        .catch((e) => this.logger.warn(`On-chain log failed: ${e?.message}`));
 
       this.logger.log(
         `AI anomaly (${result.confidence}): ${result.summary}`,
