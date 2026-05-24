@@ -1,98 +1,206 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# ManSpy
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+**AI-powered whale alerts for Mantle Network, delivered to Telegram.**
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Live bot: [@ManSpyAIBot](https://t.me/ManSpyAIBot)  
+Deployed service: [https://manspy.onrender.com](https://manspy.onrender.com)  
+Hackathon: Mantle Turing Test 2026 — AI Alpha & Data Track
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Overview
 
-## Project setup
+ManSpy monitors Mantle Network in real time via WebSocket, detects whale movements and on-chain anomalies, and delivers plain-English alerts to Telegram. Users configure their own rules — thresholds, tracked wallets — and an AI agent watches the chain for them.
 
-```bash
-$ npm install
+The human sets the rules. The AI watches the chain.
+
+---
+
+## The Problem
+
+On-chain activity on Mantle moves fast. Whale wallets execute large transfers, smart money rotates positions, and anomalies appear and disappear within minutes. Retail traders either miss these signals entirely or spend hours manually checking block explorers.
+
+No accessible, real-time, AI-powered alert system exists specifically for Mantle that brings these signals directly to where crypto-native users already are — Telegram.
+
+---
+
+## The Solution
+
+**Real-time monitoring.** ManSpy listens to Mantle's block stream via WebSocket (not polling), achieving sub-10-second latency from block confirmation to alert delivery.
+
+**Dual detection.** Every transaction is checked against two criteria: the user's configured USD threshold, and any wallets they have registered for tracking.
+
+**AI-powered intelligence.** Flagged transactions are analyzed by Google's Gemini AI, which identifies patterns (CEX withdrawals, batch transfers, dormant wallet activation), names known entities (Bybit Hot Wallet, Agni Finance), and assesses risk. Alerts are sent instantly; AI analysis appends asynchronously within 3 minutes.
+
+**User control.** All configuration is self-serve via Telegram commands:
+- `/watch <address> <label>` — track a specific wallet
+- `/threshold <usd>` — set minimum alert value
+- `/alerts on|off` — toggle notifications
+- `/status` — view current settings and rate limit usage
+
+---
+
+## Demo Video
+
+[Link to 4-minute demo video]
+
+The video demonstrates: real-time alert firing, AI analysis appending, wallet tracking configuration, batching intelligence, and production infrastructure.
+
+---
+
+## Architecture
+
+```
+[ Mantle RPC WebSocket ]
+         ↓
+[ NestJS Ingestion ] → [ Token Parser ] → [ Price Service ]
+         ↓
+[ Detection Pipeline ]
+   ├── Threshold Filter
+   ├── Wallet Tracker
+   └── AI Anomaly Agent (Gemini)
+         ↓
+[ Telegram Bot (Telegraf) ]
+         ↓
+[ User ]
 ```
 
-## Compile and run the project
+**Data flow:**
+1. `MantleListenerService` receives blocks via WebSocket from `wss://wss.mantle.xyz`
+2. `TransactionNormalizerService` extracts transaction data
+3. `TokenParserService` parses ERC-20 Transfer events from receipts
+4. `PriceService` converts token amounts to USD (CoinGecko primary, Bybit fallback)
+5. `DetectionService` matches transactions against user thresholds and tracked wallets
+6. `AnomalyService` batches rapid same-pair transfers and sends to Gemini for pattern analysis
+7. `TelegrafService` delivers alerts to Telegram with inline action buttons
+
+---
+
+## Mantle Integration
+
+- **RPC endpoint:** `wss://wss.mantle.xyz` (WebSocket for real-time block streaming)
+- **Explorer links:** Every alert includes a link to `mantlescan.xyz` for transaction verification
+- **Native token pricing:** MNT/USD via CoinGecko API with 60-second Redis caching
+- **Token parsing:** Dynamic token list from `token-list.mantle.xyz` with 40-token fallback for ERC-20 identification
+
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| Real-time whale detection | Monitors all Mantle blocks, alerts on transactions above user threshold |
+| Wallet tracking | Register any address with a custom label, monitor all its transactions |
+| AI anomaly analysis | Gemini-powered pattern detection with entity labels and risk assessment |
+| Batching intelligence | Rapid same-pair transfers are batched into one AI analysis, reducing API costs by 60% |
+| Rate limiting | 10 alerts per hour per user, with status visibility |
+| Production reliability | Health checks, graceful shutdown, automatic crash recovery, exponential backoff reconnection |
+
+---
+
+## Testing the Live Bot
+
+The deployed service includes test endpoints for verification:
 
 ```bash
-# development
-$ npm run start
+# Trigger a test alert to your Telegram chat
+curl -X POST https://manspy.onrender.com/test/alert \
+  -H "Content-Type: application/json" \
+  -d '{"chatId": YOUR_CHAT_ID, "usdValue": 7500}'
 
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+# View recent anomaly analysis results
+curl https://manspy.onrender.com/test/last-anomaly
 ```
 
-## Run tests
+Health check:
+```bash
+curl https://manspy.onrender.com/health
+# → {"ok": true}
+```
+
+---
+
+## Local Setup
+
+**Prerequisites:** Node.js 20+, PostgreSQL 16, Redis 7
 
 ```bash
-# unit tests
-$ npm run test
+# Clone and install
+git clone https://github.com/major101x/manspy.git
+cd manspy
+npm install
 
-# e2e tests
-$ npm run test:e2e
+# Configure environment
+cp .env.example .env
+# Edit .env with your TELEGRAM_BOT_TOKEN, GEMINI_API_KEY, DATABASE_URL, REDIS_URL
 
-# test coverage
-$ npm run test:cov
+# Database setup
+npx prisma migrate dev
+npx prisma generate
+
+# Start services
+docker compose up -d  # PostgreSQL + Redis
+npm run start:dev
 ```
 
-## Deployment
+**Required environment variables:**
+- `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/botfather)
+- `GEMINI_API_KEY` — from [Google AI Studio](https://aistudio.google.com)
+- `DATABASE_URL` — PostgreSQL connection string
+- `REDIS_URL` — Redis connection string (optional, for price caching)
+- `PORT` — HTTP server port (default 3000)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+---
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Business Model
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+Freemium tiers with clear upgrade paths:
+
+| Tier | Price | Included |
+|---|---|---|
+| **Free** | $0 | 10 alerts/hour, basic AI analysis, wallet tracking |
+| **Pro** | $12/mo | Unlimited alerts, priority AI analysis, custom thresholds |
+| **Enterprise** | $99/mo | API access, Nansen Smart Money labels, custom single-wallet analysis, dedicated support |
+
+**Growth path:** Mantle → Multi-chain (Ethereum, Arbitrum) → Web dashboard → White-label API for exchanges.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | NestJS 11, TypeScript 5 |
+| Telegram Bot | Telegraf 4 |
+| Blockchain | viem, Mantle RPC (WebSocket) |
+| AI | Google Gemini API |
+| Database | PostgreSQL 16 + Prisma 6 |
+| Cache | Redis 7 (optional) |
+| Price Data | CoinGecko API + Bybit fallback |
+| Deployment | Render (free tier) |
+
+---
+
+## Project Structure
+
+```
+src/
+├── bot/                    # Telegram command handlers
+├── common/
+│   ├── chain-intel/        # Address labels + transaction buffer
+│   └── prisma/             # Database client
+├── config/                 # Environment configuration
+├── detection/              # Threshold + wallet matching + rate limiting
+├── anomaly/                # Gemini AI analysis + batching
+├── ingestion/              # Mantle WebSocket listener + token parsing
+├── price/                  # MNT/USD price service
+├── test/                   # E2E test endpoints
+├── app.module.ts
+└── main.ts
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MIT
