@@ -5,8 +5,8 @@
 | Tier | Price | Included |
 |---|---|---|
 | **Free** | $0 | 10 alerts/hour, basic AI analysis, wallet tracking, MantleScan links |
-| **Pro** | **$12/mo** | Unlimited alerts, priority AI analysis, custom thresholds, rate limit removal |
-| **Enterprise** | **$99/mo** | API access, Nansen Smart Money labels, dedicated support, custom single-wallet deep analysis, more insights per transaction |
+| **Pro** | **$12/mo** | Unlimited alerts, priority AI analysis (faster batching), custom thresholds, rate limit removal, Nansen wallet profiling |
+| **Enterprise** | **$99/mo** | API access, custom single-wallet deep analysis, Nansen Smart Money labels + premium entity tags, dedicated support
 
 ## Why It Works
 
@@ -18,10 +18,10 @@
 **Pro tier for active traders**
 - $12/month is less than one failed trade
 - Unlimited alerts = peace of mind during market moves
-- Priority AI = faster anomaly analysis (no batching delays)
+- Priority AI = faster anomaly analysis (batching window reduced from 3 min to 1 min)
 
 **Enterprise for institutions**
-- VCs, quant funds, and protocol treasuries need named entities (Nansen labels)
+- VCs, quant funds, and protocol treasuries need named entities (planned via Nansen labels post-hackathon)
 - Custom single-wallet analysis = deep due diligence on specific targets
 - API access = plug ManSpy intelligence into existing trading infrastructure
 

@@ -34,14 +34,14 @@ Simple diagram appears. Draw in real-time or use a pre-made slide.
    ├── Threshold Filter
    ├── Wallet Tracker
    └── AI Anomaly Agent (Gemini)
-         ↓
-[ Telegram Bot (Telegraf) ]
+         ↓                    ↓
+[ Telegram Bot (Telegraf) ] [ Smart Contract (Mantle Sepolia) ]
          ↓
 [ User ]
 ```
 
 **Voiceover:**  
-*"ManSpy is built on NestJS with a modular pipeline. We listen to Mantle's block stream via WebSocket — not polling, so latency is under ten seconds. Every transaction gets parsed for ERC-20 transfers, priced in USD, and checked against two things: your personal threshold, and any wallets you're tracking. If it matches, the AI agent analyzes the pattern — and the alert hits your Telegram before the block is even finalized."*
+*"ManSpy is built on NestJS with a modular pipeline. We listen to Mantle's block stream via WebSocket — not polling, so latency is under ten seconds. Every transaction gets parsed for ERC-20 transfers, priced in USD, and checked against two things: your personal threshold, and any wallets you're tracking. If it matches, the AI agent analyzes the pattern, logs the result permanently on Mantle Sepolia, and the alert hits your Telegram before the block is even finalized."*
 
 **Key points to hit:**  
 - Real-time WebSocket (not polling)
@@ -112,10 +112,9 @@ To: 0x88a8984f2b8507bbc1c699594e3a4ecdefed4784
 Value: 11,517.018 MNT ($7,408.978)
 
 🤖 Pattern: cex_withdrawal | Risk: low
-Bybit Hot Wallet (CEX) chunked $21K MNT to a fresh 
-address in 3 rapid transfers. Likely automated payout.
-
-🔗 [View on Explorer]
+Bybit Hot Wallet transferred ~$7,500 in MNT to a 
+newly created wallet, representing a standard CEX 
+withdrawal and new wallet funding event. Confidence: 95%
 ```
 
 **Voiceover:**  
@@ -146,41 +145,40 @@ Gemini batch result for 0x0000...4eba:0x88a8...4784: {"pattern":"cex_withdrawal"
 ```
 
 **Voiceover:**  
-*"Three rapid transfers from the same pair. Instead of calling the AI three times and burning our API quota, ManSpy batches them into one intelligent analysis. It sees the full pattern — twenty-one thousand dollars in three chunks — not three isolated transfers. This cuts AI costs by sixty percent and produces better insights."*
+*"Three rapid transfers from the same pair. Instead of calling the AI three times and burning our API quota, ManSpy batches them into one intelligent analysis. It sees the full pattern — twenty-one thousand dollars in three chunks — not three isolated transfers. The result is logged permanently on Mantle Sepolia for auditability. This cuts AI costs by sixty percent and produces better insights."*
 
 ---
 
 ## Scene 7: Production Readiness (30 seconds)
 
 **Visual:**  
-Split screen. Left: Browser showing `https://manspy.onrender.com/health` → `{"ok":true}`. Right: Render dashboard showing "Live" status.
+Split screen. Left: Browser showing `https://manspy.onrender.com/health` → `{"ok":true}`. Center: Render dashboard showing "Live" status. Right: MantleScan Sepolia showing the verified contract at `0xBefF514A396A4c500d6C15fEF536875Ff9f22711` with a successful `logAlert` transaction.
 
 **Voiceover:**  
-*"ManSpy is production-deployed on Render with health monitoring, graceful shutdown, and automatic crash recovery. If the Telegram API hiccups, it retries five times then restarts cleanly. If Mantle serves a block before it's indexed, it logs and skips — no crashes. This isn't a demo. This is live infrastructure."*
+*"ManSpy is production-deployed on Render with health monitoring, graceful shutdown, and automatic crash recovery. If the Telegram API hiccups, it retries five times then restarts cleanly. If Mantle serves a block before it's indexed, it logs and skips — no crashes. Every AI decision is also logged on-chain via our ManSpyAlertLog smart contract on Mantle Sepolia, creating a permanent, auditable record. This isn't a demo. This is live infrastructure with verifiable on-chain intelligence."*
 
 ---
 
-## Scene 8: The Future — Nansen + Business Model (30 seconds)
+## Scene 8: The Future — Premium Tiers + Business Model (30 seconds)
 
 **Visual:**  
 Slide with two columns.
 
-**Column 1 — Nansen Integration:**
-- "Smart Money labels via Nansen API"
-- "Replace hardcoded tags with live entity database"
-- "Identify VC wallets, protocol treasuries, MEV bots"
+**Column 1 — What's Next:**
+- "Nansen wallet profiling (Pro tier) — holdings, PnL, activity"
+- "Nansen Smart Money labels (Enterprise) — VCs, funds, public figures"
+- "Cross-chain expansion: Ethereum, Arbitrum, Solana"
 
 **Column 2 — Business Model:**
 ```
 Free Tier: 10 alerts/hour, basic AI analysis
-Pro Tier ($9/mo): Unlimited alerts, priority AI
-Enterprise ($49/mo): Custom thresholds, API access, 
-                     Nansen Smart Money labels, 
-                     dedicated support
+Pro Tier ($12/mo): Unlimited alerts, priority AI, Nansen profiling
+Enterprise ($99/mo): API access, Nansen Smart Money labels,
+                      dedicated support, custom analysis
 ```
 
 **Voiceover:**  
-*"We're already integrated with Nansen for Smart Money labels — turning generic addresses into named entities like VC wallets and protocol treasuries. The business model is freemium: ten alerts per hour for free, unlimited for nine dollars a month. Enterprise clients get API access and institutional-grade intelligence. Sustainable revenue, real user demand, and a clear path to scale."*
+*"ManSpy is built to scale. The free tier gets ten alerts per hour — enough for casual monitoring. Pro unlocks unlimited alerts, priority AI with faster batching, and Nansen wallet profiling for deeper context. Enterprise adds API access and full Nansen Smart Money labels, turning generic addresses into named entities like VC wallets and protocol treasuries. Real user demand, sustainable revenue, and a clear path to multi-chain intelligence."*
 
 ---
 
@@ -206,10 +204,11 @@ manspy.onrender.com
 
 | Item | Status |
 |---|---|
-| Telegram bot responds to commands | ⬜ Test before recording |
-| `/test/alert` endpoint works | ⬜ Verify curl returns 200 |
-| AI analysis appends within 3 min | ⬜ Test with single alert first |
-| Render `/health` returns `{"ok":true}` | ⬜ Check in browser |
+| Telegram bot responds to commands | ✅ Verified live |
+| `/test/alert` endpoint works | ✅ Verified — fires to chat instantly |
+| AI analysis appends within 3 min | ✅ Verified — Gemini appends pattern + risk |
+| Smart contract logs on-chain | ✅ Verified — tx `0x69bbeb...` on Mantle Sepolia |
+| Render `/health` returns `{"ok":true}` | ✅ Live and responding |
 | Architecture diagram ready | ⬜ Draw or use slide |
 | Business model slide ready | ⬜ Create in Canva/Slides |
 | Voiceover quiet room | ⬜ Find quiet space |
