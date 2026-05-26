@@ -8,9 +8,9 @@
 ## Critical (Must Do)
 
 ### 1. Record Demo Video
-- [ ] Test `/test/alert` endpoint on production (verify it fires to your chat)
-- [ ] Test 3 rapid alerts to verify batching works
-- [ ] Wait 3 min, verify AI analysis appends
+- [x] Test `/test/alert` endpoint on production (verified — fires instantly to chat)
+- [x] Test AI analysis appends (verified — Gemini appends pattern + risk)
+- [x] Verify smart contract on-chain logging (verified — tx `0x69bbeb...` on Mantle Sepolia)
 - [ ] Record Scene 1-9 using demo script (`docs/demo-script.md`)
 - [ ] Edit out 3-min wait between Scene 4 and 5
 - [ ] Export at 1080p, 60fps
@@ -55,13 +55,14 @@
 ## Bonus (If Time)
 
 ### 5. Nansen API Integration
-- [ ] Wait for Nansen credit approval
+**Status:** Deferred — see `docs/nansen-integration-plan.md`
+- [x] API access obtained (640 credits, free plan 10x cost makes per-alert enrichment ~60 credits — not viable for MVP)
 - [ ] Integrate REST API for wallet labels
 - [ ] Replace hardcoded `AddressLabelService` with live Nansen data
 - [ ] Add Smart Money label detection to AI prompt
 
 **Time:** 2-4 hours  
-**Dependencies:** Nansen credits approved
+**Dependencies:** Sufficient credits or paid plan (recommended post-hackathon as Pro/Enterprise feature)
 
 ### 6. Polish
 - [ ] Add bot logo to Telegram profile picture
@@ -87,6 +88,9 @@
 - [x] BlockNotFoundError handling
 - [x] Health endpoint + Render deploy
 - [x] E2E test endpoints
+- [x] Smart contract deployed + integrated (Mantle Sepolia: `0xBefF514A...22711`)
+- [x] On-chain alert logging verified (tx: `0x69bbeb...01e844`)
+- [x] Nansen integration plan written and deferred (`docs/nansen-integration-plan.md`)
 - [x] Demo script written
 
 ---

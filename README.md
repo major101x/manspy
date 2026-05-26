@@ -50,19 +50,20 @@ The video demonstrates: real-time alert firing, AI analysis appending, wallet tr
 
 ## Architecture
 
-```
-[ Mantle RPC WebSocket ]
-         ↓
-[ NestJS Ingestion ] → [ Token Parser ] → [ Price Service ]
-         ↓
-[ Detection Pipeline ]
-   ├── Threshold Filter
-   ├── Wallet Tracker
-   └── AI Anomaly Agent (Gemini)
-         ↓
-[ Telegram Bot (Telegraf) ]
-         ↓
-[ User ]
+```mermaid
+graph TD
+    A[Mantle RPC WebSocket] --> B[NestJS Ingestion]
+    B --> C[Token Parser]
+    C --> D[Price Service]
+    B --> E[Detection Pipeline]
+
+    E --> F[Threshold Filter]
+    E --> G[Wallet Tracker]
+    E --> H[AI Anomaly Agent <br> Gemini]
+
+    H --> I[Telegram Bot <br> Telegraf]
+    H --> J[Smart Contract <br> Mantle Sepolia]
+    I --> K[User]
 ```
 
 **Data flow:**
@@ -72,7 +73,8 @@ The video demonstrates: real-time alert firing, AI analysis appending, wallet tr
 4. `PriceService` converts token amounts to USD (CoinGecko primary, Bybit fallback)
 5. `DetectionService` matches transactions against user thresholds and tracked wallets
 6. `AnomalyService` batches rapid same-pair transfers and sends to Gemini for pattern analysis
-7. `TelegrafService` delivers alerts to Telegram with inline action buttons
+7. `AlertLogService` logs the AI result on-chain via `ManSpyAlertLog` smart contract
+8. `TelegrafService` delivers alerts to Telegram with inline action buttons
 
 ---
 
@@ -96,6 +98,8 @@ The `ManSpyAlertLog` contract permanently records every AI anomaly analysis on M
 - `logAlert(txHash, pattern, riskLevel, confidence)` — callable by the AI agent after each analysis
 - `records(id)` — public view function to query any historical alert
 - `getRecordCount()` — total number of logged alerts
+
+**Verified transaction:** [`0x69bbeb...01e844`](https://sepolia.mantlescan.xyz/tx/0x69bbeb627ec155819328266bb563f9dd6c3e777214305bfa7c65931daf01e844) — first on-chain alert logged (pattern: `cex_withdrawal`, confidence: 95%).
 
 Every Gemini AI decision is now auditable on-chain, creating a verifiable track record for the agent.
 
@@ -177,8 +181,8 @@ Freemium tiers with clear upgrade paths:
 | Tier | Price | Included |
 |---|---|---|
 | **Free** | $0 | 10 alerts/hour, basic AI analysis, wallet tracking |
-| **Pro** | $12/mo | Unlimited alerts, priority AI analysis, custom thresholds |
-| **Enterprise** | $99/mo | API access, Nansen Smart Money labels, custom single-wallet analysis, dedicated support |
+| **Pro** | $12/mo | Unlimited alerts, priority AI analysis (faster batching), custom thresholds, Nansen wallet profiling |
+| **Enterprise** | $99/mo | API access, custom single-wallet analysis, Nansen Smart Money labels + premium entity tags, dedicated support |
 
 **Growth path:** Mantle → Multi-chain (Ethereum, Arbitrum) → Web dashboard → White-label API for exchanges.
 
