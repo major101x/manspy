@@ -54,7 +54,17 @@
 
 ## Bonus (If Time)
 
-### 5. Nansen API Integration
+### 5. Quick Wins for Higher Score (Pre-Video)
+- [ ] Add `/trends` command — top moving wallets in last 24h (investment utility)
+- [ ] Create simple web dashboard — static HTML showing recent alerts + patterns (insight value + scalability)
+- [ ] Add 5+ more pattern types to Gemini prompt — dormant wallet, accumulation, MEV, etc. (insight value)
+- [ ] Feature one real Mantle whale alert (not synthetic) in demo (data source quality)
+- [ ] Add "what happened next" tracking — alert if receiving wallet sells within 1 hour (investment utility)
+
+**Time:** 8-15 hours total  
+**Impact:** Could push score from ~32/50 to 40+/50
+
+### 6. Nansen API Integration
 **Status:** Deferred — see `docs/nansen-integration-plan.md`
 - [x] API access obtained (640 credits, free plan 10x cost makes per-alert enrichment ~60 credits — not viable for MVP)
 - [ ] Integrate REST API for wallet labels
