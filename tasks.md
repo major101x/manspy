@@ -55,6 +55,11 @@
 ## Bonus (If Time)
 
 ### 5. Quick Wins for Higher Score (Pre-Video)
+- [ ] Integrate BlockchainAnalysis.io entity lookup into `AddressLabelService`
+  - Free tier: 100 req/min entity lookup, no API key needed for basic lookups
+  - 97M+ labeled addresses — exchanges, DeFi, VCs, mixers, sanctions
+  - Replaces static hardcoded labels with dynamic live database
+  - **Impact:** Bumps "Data source quality" from ~10/15 to ~13/15
 - [ ] Add `/trends` command — top moving wallets in last 24h (investment utility)
 - [ ] Create simple web dashboard — static HTML showing recent alerts + patterns (insight value + scalability)
 - [ ] Add 5+ more pattern types to Gemini prompt — dormant wallet, accumulation, MEV, etc. (insight value)
