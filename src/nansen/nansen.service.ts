@@ -97,18 +97,30 @@ export class NansenService {
   }
 
   private async fetchPnLSummary(address: string): Promise<NansenPnLSummaryResponse | null> {
+    const [from, to] = this.getLastMonthRange();
     return this.call<NansenPnLSummaryResponse>('/profiler/address/pnl-summary', {
       address,
       chain: 'mantle',
+      date: { from, to },
     });
   }
 
   private async fetchTransactions(address: string): Promise<NansenTransactionsResponse | null> {
+    const [from, to] = this.getLastMonthRange();
     return this.call<NansenTransactionsResponse>('/profiler/address/transactions', {
       address,
       chain: 'mantle',
+      date: { from, to },
       pagination: { page: 1, per_page: 5 },
     });
+  }
+
+  private getLastMonthRange(): [string, string] {
+    const to = new Date();
+    const from = new Date();
+    from.setMonth(from.getMonth() - 1);
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+    return [fmt(from), fmt(to)];
   }
 
   private async call<T>(path: string, body: unknown): Promise<T | null> {
