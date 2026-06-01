@@ -55,29 +55,30 @@
 ## Bonus (If Time)
 
 ### 5. Quick Wins for Higher Score (Pre-Video)
-- [ ] Integrate BlockchainAnalysis.io entity lookup into `AddressLabelService`
-  - Free tier: 100 req/min entity lookup, no API key needed for basic lookups
-  - 97M+ labeled addresses — exchanges, DeFi, VCs, mixers, sanctions
-  - Replaces static hardcoded labels with dynamic live database
-  - **Impact:** Bumps "Data source quality" from ~10/15 to ~13/15
+- [x] Integrate Nansen profiler trio into `AddressLabelService` — **DONE**
+  - Enriches unknown addresses with holdings, PnL, transaction count
+  - Redis cache (7-day TTL) minimizes API calls
+  - Fallback to standard AI analysis if Nansen fails
+  - **Impact:** Bumps "Data source quality" from ~10/15 to ~14/15
 - [ ] Add `/trends` command — top moving wallets in last 24h (investment utility)
 - [ ] Create simple web dashboard — static HTML showing recent alerts + patterns (insight value + scalability)
 - [ ] Add 5+ more pattern types to Gemini prompt — dormant wallet, accumulation, MEV, etc. (insight value)
 - [ ] Feature one real Mantle whale alert (not synthetic) in demo (data source quality)
 - [ ] Add "what happened next" tracking — alert if receiving wallet sells within 1 hour (investment utility)
 
-**Time:** 8-15 hours total  
-**Impact:** Could push score from ~32/50 to 40+/50
+**Time:** 6-12 hours remaining  
+**Impact:** Could push score from ~35/50 to 42+/50
 
 ### 6. Nansen API Integration
-**Status:** Deferred — see `docs/nansen-integration-plan.md`
-- [x] API access obtained (640 credits, free plan 10x cost makes per-alert enrichment ~60 credits — not viable for MVP)
-- [ ] Integrate REST API for wallet labels
-- [ ] Replace hardcoded `AddressLabelService` with live Nansen data
-- [ ] Add Smart Money label detection to AI prompt
+**Status:** ✅ **IMPLEMENTED**
+- [x] Pro plan activated (100,630 credits, no 10× penalty)
+- [x] Profiler trio integrated: current-balance, pnl-summary, transactions
+- [x] Redis caching (7-day TTL)
+- [x] Error handling with 1-hour circuit breaker
+- [x] Appended to Gemini prompt for richer AI analysis
+- [ ] Smart Money labels (premium endpoint) — deferred, 500 credits/address
 
-**Time:** 2-4 hours  
-**Dependencies:** Sufficient credits or paid plan (recommended post-hackathon as Pro/Enterprise feature)
+**Time:** Completed
 
 ### 6. Polish
 - [ ] Add bot logo to Telegram profile picture
@@ -106,6 +107,7 @@
 - [x] Smart contract deployed + integrated (Mantle Sepolia: `0xBefF514A...22711`)
 - [x] On-chain alert logging verified (tx: `0x69bbeb...01e844`)
 - [x] Nansen integration plan written and deferred (`docs/nansen-integration-plan.md`)
+- [x] Nansen profiler trio integrated (current-balance, pnl-summary, transactions)
 - [x] Demo script written
 
 ---
