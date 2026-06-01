@@ -153,21 +153,24 @@ export class AnomalyService {
     if (senderHistory.length > 1) {
       historyBlock += `\nSender recent activity (${senderHistory.length - 1} prior txs in buffer):\n`;
       for (const h of senderHistory.slice(0, -1)) {
-        historyBlock += `  - ${h.tx.txHash.slice(0, 12)}… → ${h.tx.to?.slice(0, 12) ?? 'deploy'}… $${h.usdValue.toLocaleString()}\n`;
+        const val = h.usdValue ?? 0;
+        historyBlock += `  - ${h.tx.txHash.slice(0, 12)}… → ${h.tx.to?.slice(0, 12) ?? 'deploy'}… $${val.toLocaleString()}\n`;
       }
     }
 
     if (recipientHistory.length > 1) {
       historyBlock += `\nRecipient recent activity (${recipientHistory.length - 1} prior txs in buffer):\n`;
       for (const h of recipientHistory.slice(0, -1)) {
-        historyBlock += `  - ${h.tx.from.slice(0, 12)}… → ${h.tx.txHash.slice(0, 12)}… $${h.usdValue.toLocaleString()}\n`;
+        const val = h.usdValue ?? 0;
+        historyBlock += `  - ${h.tx.from.slice(0, 12)}… → ${h.tx.txHash.slice(0, 12)}… $${val.toLocaleString()}\n`;
       }
     }
 
     if (pairHistory.length > 1) {
       historyBlock += `\nThis exact pair recent activity (${pairHistory.length - 1} prior txs in buffer):\n`;
       for (const h of pairHistory.slice(0, -1)) {
-        historyBlock += `  - ${h.tx.txHash.slice(0, 12)}… $${h.usdValue.toLocaleString()} ${h.tokenLabel ?? ''}\n`;
+        const val = h.usdValue ?? 0;
+        historyBlock += `  - ${h.tx.txHash.slice(0, 12)}… $${val.toLocaleString()} ${h.tokenLabel ?? ''}\n`;
       }
     }
 
@@ -182,19 +185,30 @@ export class AnomalyService {
         nansenBlock += `\n${shortAddr}:\n`;
 
         if (enriched.nansen.currentBalance?.data?.length) {
-          const totalUsd = enriched.nansen.currentBalance.data.reduce((sum, t) => sum + (t.value_usd || 0), 0);
-          nansenBlock += `  - Holdings: $${(totalUsd / 1e6).toFixed(2)}M total\n`;
-          const top3 = enriched.nansen.currentBalance.data.slice(0, 3);
-          nansenBlock += `    Top: ${top3.map(t => `${t.token_symbol} $${(t.value_usd / 1e6).toFixed(2)}M`).join(', ')}\n`;
+          const totalUsd = enriched.nansen.currentBalance.data.reduce((sum, t) => sum + (t.value_usd ?? 0), 0);
+          if (totalUsd > 0) {
+            nansenBlock += `  - Holdings: $${(totalUsd / 1e6).toFixed(2)}M total\n`;
+            const top3 = enriched.nansen.currentBalance.data.slice(0, 3);
+            const topLines = top3
+              .filter(t => (t.value_usd ?? 0) > 0)
+              .map(t => `${t.token_symbol} $${((t.value_usd ?? 0) / 1e6).toFixed(2)}M`)
+              .join(', ');
+            if (topLines) nansenBlock += `    Top: ${topLines}\n`;
+          }
         }
 
         if (enriched.nansen.pnlSummary) {
           const pnl = enriched.nansen.pnlSummary;
-          nansenBlock += `  - PnL: $${(pnl.realized_pnl_usd / 1e3).toFixed(1)}K realized, ${(pnl.win_rate * 100).toFixed(0)}% win rate\n`;
+          const realized = pnl.realized_pnl_usd ?? 0;
+          const winRate = pnl.win_rate ?? 0;
+          nansenBlock += `  - PnL: $${(realized / 1e3).toFixed(1)}K realized, ${(winRate * 100).toFixed(0)}% win rate\n`;
         }
 
         if (enriched.nansen.transactions) {
-          nansenBlock += `  - Activity: ${enriched.nansen.transactions.total_count.toLocaleString()} total transactions\n`;
+          const txCount = enriched.nansen.transactions.total_count ?? enriched.nansen.transactions.items?.length ?? 0;
+          if (txCount > 0) {
+            nansenBlock += `  - Activity: ${txCount.toLocaleString()} total transactions\n`;
+          }
         }
       }
     }
@@ -203,7 +217,7 @@ export class AnomalyService {
 
 Sender: ${tx.from} — ${fromLabel}
 Recipient: ${tx.to ?? 'Contract Deployment'} — ${toLabel}
-Value: ${tokenLabel ?? `${Number(tx.value) / 1e18} MNT`} (~$${usdValue.toLocaleString()})
+Value: ${tokenLabel ?? `${Number(tx.value ?? 0) / 1e18} MNT`} (~$${(usdValue ?? 0).toLocaleString()})
 ${historyBlock}
 ${nansenBlock}
 
