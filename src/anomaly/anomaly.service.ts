@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
 import { AddressLabelService } from '../common/chain-intel/address-label.service';
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
@@ -26,18 +26,10 @@ interface AlertTarget {
   text: string;
 }
 
-interface PendingBatch {
-  txs: { tx: NormalizedTransaction; usdValue: number; tokenLabel: string | undefined }[];
-  messageIds: Map<string, AlertTarget>;
-  firstSeenAt: number;
-}
-
 @Injectable()
 export class AnomalyService {
   private readonly logger = new Logger(AnomalyService.name);
-  private ai: GoogleGenAI;
-  private pendingBatches = new Map<string, PendingBatch>();
-  private readonly batchWindowMs = 3 * 60 * 1000; // 3 minutes
+  private ai: OpenAI;
   private recentResults: Array<{
     timestamp: number;
     pairKey: string;
@@ -50,7 +42,10 @@ export class AnomalyService {
     private buffer: RecentTxBufferService,
     private alertLog: AlertLogService,
   ) {
-    this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+    this.ai = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY!,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
   }
 
   getRecentResults(limit = 5) {
@@ -63,9 +58,8 @@ export class AnomalyService {
   }
 
   /**
-   * Process an anomaly check, potentially batching rapid same-pair transfers.
-   * For batched items, the callback is invoked after the batch window expires.
-   * For immediate items, the callback is invoked immediately with the result.
+   * Analyze a transaction immediately using Groq.
+   * No batching — every alert gets instant AI analysis.
    */
   async analyze(
     tx: NormalizedTransaction,
@@ -76,75 +70,32 @@ export class AnomalyService {
     onResult: (result: AnomalyResult | null, batchSize: number) => void,
   ): Promise<void> {
     const pairKey = `${tx.from}:${tx.to ?? 'null'}`;
-    const existing = this.pendingBatches.get(pairKey);
-
-    if (existing && Date.now() - existing.firstSeenAt < this.batchWindowMs) {
-      // Add to existing batch
-      existing.txs.push({ tx, usdValue, tokenLabel });
-      // Merge messageIds
-      for (const [k, v] of messageIds) {
-        existing.messageIds.set(k, v);
-      }
-      this.logger.log(
-        `Batching tx ${tx.txHash.slice(0, 10)}… into pair ${pairKey} (batch size: ${existing.txs.length})`,
-      );
-      return;
-    }
-
-    // Flush any expired batch for this pair
-    if (existing) {
-      this.pendingBatches.delete(pairKey);
-    }
-
-    // Start new batch
-    const batch: PendingBatch = {
-      txs: [{ tx, usdValue, tokenLabel }],
-      messageIds: new Map(messageIds),
-      firstSeenAt: Date.now(),
-    };
-    this.pendingBatches.set(pairKey, batch);
-
-    // Wait for batch window, then analyze
-    setTimeout(() => {
-      this.flushBatch(pairKey, wallet, onResult).catch((e: any) =>
-        this.logger.warn(`Batch flush failed: ${e?.message}`),
-      );
-    }, this.batchWindowMs);
-  }
-
-  private async flushBatch(
-    pairKey: string,
-    walletTemplate: WalletContext,
-    onResult: (result: AnomalyResult | null, batchSize: number) => void,
-  ) {
-    const batch = this.pendingBatches.get(pairKey);
-    if (!batch) return;
-    this.pendingBatches.delete(pairKey);
-
-    if (batch.txs.length === 0) return;
-
-    // Use the most recent tx for wallet context (best effort)
-    const latest = batch.txs[batch.txs.length - 1];
-
-    const prompt = await this.buildBatchPrompt(batch.txs, walletTemplate);
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-flash-latest',
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: {
-          temperature: 0.1,
-          responseMimeType: 'application/json',
-        },
+      const prompt = await this.buildPrompt(tx, usdValue, tokenLabel, wallet);
+
+      const response = await this.ai.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an on-chain intelligence analyst for Mantle Network. You analyze transactions and wallet behavior to identify patterns. You have access to recent transaction history, entity labels, and wallet activity counts. Be concise, factual, and actionable. Never make buy/sell recommendations. Never hallucinate information not in the data.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 256,
+        response_format: { type: 'json_object' },
       });
 
-      const parsed = JSON.parse(response.text ?? '{}');
-      this.logger.log(
-        `Gemini batch result for ${pairKey}: ${JSON.stringify(parsed)}`,
-      );
+      const content = response.choices[0]?.message?.content ?? '{}';
+      const parsed = JSON.parse(content);
+
+      this.logger.log(`Groq result for ${pairKey}: ${JSON.stringify(parsed)}`);
 
       if (!parsed.summary) {
-        onResult(null, batch.txs.length);
+        onResult(null, 1);
         return;
       }
 
@@ -155,57 +106,47 @@ export class AnomalyService {
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
       };
 
-      this.recentResults.push({ timestamp: Date.now(), pairKey, result, batchSize: batch.txs.length });
+      this.recentResults.push({ timestamp: Date.now(), pairKey, result, batchSize: 1 });
       if (this.recentResults.length > 20) this.recentResults.shift();
 
-      onResult(result, batch.txs.length);
+      onResult(result, 1);
 
       // Log to blockchain
       this.alertLog
-        .logAlert(latest.tx.txHash, result.pattern, result.risk_level, result.confidence)
+        .logAlert(tx.txHash, result.pattern, result.risk_level, result.confidence)
         .catch((e) => this.logger.warn(`On-chain log failed: ${e?.message}`));
 
-      this.logger.log(
-        `AI anomaly (${result.confidence}): ${result.summary}`,
-      );
+      this.logger.log(`AI anomaly (${result.confidence}): ${result.summary}`);
     } catch (e: any) {
-      this.logger.warn(
-        `Gemini batch analysis failed for ${pairKey}: ${e?.message}`,
-      );
-      this.recentResults.push({ timestamp: Date.now(), pairKey, result: null, batchSize: batch.txs.length });
+      this.logger.warn(`Groq analysis failed for ${pairKey}: ${e?.message}`);
+      this.recentResults.push({ timestamp: Date.now(), pairKey, result: null, batchSize: 1 });
       if (this.recentResults.length > 20) this.recentResults.shift();
-      onResult(null, batch.txs.length);
+      onResult(null, 1);
     }
   }
 
-  private async buildBatchPrompt(
-    txs: { tx: NormalizedTransaction; usdValue: number; tokenLabel: string | undefined }[],
+  private async buildPrompt(
+    tx: NormalizedTransaction,
+    usdValue: number,
+    tokenLabel: string | undefined,
     wallet: WalletContext,
   ): Promise<string> {
-    const latest = txs[txs.length - 1];
-
     // Enrich with Nansen (parallel, non-blocking if fails)
     const [fromEnriched, toEnriched] = await Promise.all([
-      this.labels.lookupWithEnrichment(latest.tx.from),
-      latest.tx.to ? this.labels.lookupWithEnrichment(latest.tx.to) : Promise.resolve({ label: null, nansen: null }),
+      this.labels.lookupWithEnrichment(tx.from),
+      tx.to ? this.labels.lookupWithEnrichment(tx.to) : Promise.resolve({ label: null, nansen: null }),
     ]);
 
     const fromLabel = this.labels.describeEnriched(fromEnriched, wallet.fromTxCount);
     const toLabel = this.labels.describeEnriched(toEnriched, wallet.toTxCount);
 
     // Recent history for sender and recipient
-    const senderHistory = this.buffer.getRecentForAddress(latest.tx.from, 5);
-    const recipientHistory = latest.tx.to
-      ? this.buffer.getRecentForAddress(latest.tx.to, 5)
+    const senderHistory = this.buffer.getRecentForAddress(tx.from, 5);
+    const recipientHistory = tx.to
+      ? this.buffer.getRecentForAddress(tx.to, 5)
       : [];
 
-    const pairHistory = this.buffer.getRecentForPair(
-      latest.tx.from,
-      latest.tx.to,
-      5,
-    );
-
-    const totalUsd = txs.reduce((sum, t) => sum + t.usdValue, 0);
+    const pairHistory = this.buffer.getRecentForPair(tx.from, tx.to, 5);
 
     let historyBlock = '';
 
@@ -258,24 +199,11 @@ export class AnomalyService {
       }
     }
 
-    const txLines = txs
-      .map(
-        (t) =>
-          `  - Hash: ${t.tx.txHash} | Value: ${t.tokenLabel ?? `${Number(t.tx.value) / 1e18} MNT`} (~$${t.usdValue.toLocaleString()})`,
-      )
-      .join('\n');
+    return `Analyze the following transaction for patterns and risk:
 
-    return `System: You are an on-chain intelligence analyst for Mantle Network. You analyze transactions and wallet behavior to identify patterns. You have access to recent transaction history, entity labels, and wallet activity counts. Be concise, factual, and actionable. Never make buy/sell recommendations. Never hallucinate information not in the data.
-
-Analyze the following transaction(s) for patterns and risk:
-
-Sender: ${latest.tx.from} — ${fromLabel}
-Recipient: ${latest.tx.to ?? 'Contract Deployment'} — ${toLabel}
-Transactions in this batch: ${txs.length}
-Total value: ~$${totalUsd.toLocaleString()}
-
-Transaction details:
-${txLines}
+Sender: ${tx.from} — ${fromLabel}
+Recipient: ${tx.to ?? 'Contract Deployment'} — ${toLabel}
+Value: ${tokenLabel ?? `${Number(tx.value) / 1e18} MNT`} (~$${usdValue.toLocaleString()})
 ${historyBlock}
 ${nansenBlock}
 
