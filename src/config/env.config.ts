@@ -25,6 +25,10 @@ export class EnvConfig {
     return this.config.get<string>('CLAUDE_API_KEY');
   }
 
+  get nansenApiKey(): string | undefined {
+    return this.config.get<string>('NANSEN_API_KEY');
+  }
+
   get botDomain(): string | undefined {
     return this.config.get<string>('BOT_DOMAIN');
   }

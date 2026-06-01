@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { NansenService } from '../../nansen/nansen.service';
+import { NansenAddressEnrichment } from '../../nansen/nansen.types';
 
 export interface LabelEntry {
   name: string;
   type: 'cex' | 'bridge' | 'dex' | 'protocol' | 'token' | 'unknown';
+}
+
+export interface EnrichedLabel {
+  label: LabelEntry | null;
+  nansen: NansenAddressEnrichment | null;
 }
 
 // Hardcoded labels for high-impact Mantle entities
@@ -39,8 +46,20 @@ const KNOWN_LABELS: Record<string, LabelEntry> = {
 
 @Injectable()
 export class AddressLabelService {
+  constructor(private readonly nansen: NansenService) {}
+
   lookup(address: string): LabelEntry | null {
     return KNOWN_LABELS[address.toLowerCase()] ?? null;
+  }
+
+  async lookupWithEnrichment(address: string): Promise<EnrichedLabel> {
+    const label = this.lookup(address);
+    if (label) {
+      return { label, nansen: null };
+    }
+
+    const nansen = await this.nansen.enrichAddress(address);
+    return { label: null, nansen };
   }
 
   describe(address: string, txCount: number): string {
@@ -58,5 +77,19 @@ export class AddressLabelService {
       return `Wallet (${txCount.toLocaleString()} txs)`;
     }
     return 'New wallet (0 txs)';
+  }
+
+  describeEnriched(enriched: EnrichedLabel, txCount: number): string {
+    if (enriched.label) {
+      return `${enriched.label.name} (${enriched.label.type.toUpperCase()})`;
+    }
+
+    if (enriched.nansen?.currentBalance?.data?.length) {
+      const topToken = enriched.nansen.currentBalance.data[0];
+      const totalUsd = enriched.nansen.currentBalance.data.reduce((sum, t) => sum + (t.value_usd || 0), 0);
+      return `Wallet — $${(totalUsd / 1e6).toFixed(1)}M total holdings, top: ${topToken.token_symbol}`;
+    }
+
+    return this.describe('', txCount);
   }
 }

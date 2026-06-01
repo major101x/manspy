@@ -126,7 +126,7 @@ export class AnomalyService {
     // Use the most recent tx for wallet context (best effort)
     const latest = batch.txs[batch.txs.length - 1];
 
-    const prompt = this.buildBatchPrompt(batch.txs, walletTemplate);
+    const prompt = await this.buildBatchPrompt(batch.txs, walletTemplate);
 
     try {
       const response = await this.ai.models.generateContent({
@@ -178,13 +178,20 @@ export class AnomalyService {
     }
   }
 
-  private buildBatchPrompt(
+  private async buildBatchPrompt(
     txs: { tx: NormalizedTransaction; usdValue: number; tokenLabel: string | undefined }[],
     wallet: WalletContext,
-  ): string {
+  ): Promise<string> {
     const latest = txs[txs.length - 1];
-    const fromLabel = this.labels.describe(latest.tx.from, wallet.fromTxCount);
-    const toLabel = this.labels.describe(latest.tx.to ?? '', wallet.toTxCount);
+
+    // Enrich with Nansen (parallel, non-blocking if fails)
+    const [fromEnriched, toEnriched] = await Promise.all([
+      this.labels.lookupWithEnrichment(latest.tx.from),
+      latest.tx.to ? this.labels.lookupWithEnrichment(latest.tx.to) : Promise.resolve({ label: null, nansen: null }),
+    ]);
+
+    const fromLabel = this.labels.describeEnriched(fromEnriched, wallet.fromTxCount);
+    const toLabel = this.labels.describeEnriched(toEnriched, wallet.toTxCount);
 
     // Recent history for sender and recipient
     const senderHistory = this.buffer.getRecentForAddress(latest.tx.from, 5);
@@ -223,6 +230,34 @@ export class AnomalyService {
       }
     }
 
+    // Nansen intelligence context
+    let nansenBlock = '';
+    if (fromEnriched.nansen || toEnriched.nansen) {
+      nansenBlock = '\nNansen intelligence:\n';
+      for (const enriched of [fromEnriched, toEnriched]) {
+        if (!enriched.nansen) continue;
+        const addr = enriched.nansen.address;
+        const shortAddr = `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+        nansenBlock += `\n${shortAddr}:\n`;
+
+        if (enriched.nansen.currentBalance?.data?.length) {
+          const totalUsd = enriched.nansen.currentBalance.data.reduce((sum, t) => sum + (t.value_usd || 0), 0);
+          nansenBlock += `  - Holdings: $${(totalUsd / 1e6).toFixed(2)}M total\n`;
+          const top3 = enriched.nansen.currentBalance.data.slice(0, 3);
+          nansenBlock += `    Top: ${top3.map(t => `${t.token_symbol} $${(t.value_usd / 1e6).toFixed(2)}M`).join(', ')}\n`;
+        }
+
+        if (enriched.nansen.pnlSummary) {
+          const pnl = enriched.nansen.pnlSummary;
+          nansenBlock += `  - PnL: $${(pnl.realized_pnl_usd / 1e3).toFixed(1)}K realized, ${(pnl.win_rate * 100).toFixed(0)}% win rate\n`;
+        }
+
+        if (enriched.nansen.transactions) {
+          nansenBlock += `  - Activity: ${enriched.nansen.transactions.total_count.toLocaleString()} total transactions\n`;
+        }
+      }
+    }
+
     const txLines = txs
       .map(
         (t) =>
@@ -242,6 +277,7 @@ Total value: ~$${totalUsd.toLocaleString()}
 Transaction details:
 ${txLines}
 ${historyBlock}
+${nansenBlock}
 
 Identify the pattern and risk. If the sender is a known CEX/bridge/protocol, name it. If multiple rapid transfers exist, note the batch pattern. If the recipient is new but just received multiple transfers, do NOT call it "new wallet funding" for each — describe the batch behavior.
 
