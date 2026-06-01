@@ -62,7 +62,9 @@
   - **Impact:** Bumps "Data source quality" from ~10/15 to ~14/15
 - [ ] Add `/trends` command — top moving wallets in last 24h (investment utility)
 - [ ] Create simple web dashboard — static HTML showing recent alerts + patterns (insight value + scalability)
-- [ ] Add 5+ more pattern types to Gemini prompt — dormant wallet, accumulation, MEV, etc. (insight value)
+- [x] Replace Gemini with Groq + eliminate batching — instant AI analysis, 30 RPM, 1,000/day
+- [x] Add defensive null checks in Nansen prompt building — fixes production crashes
+- [ ] Add 5+ more pattern types to Groq prompt — dormant wallet, accumulation, MEV, etc. (insight value)
 - [ ] Feature one real Mantle whale alert (not synthetic) in demo (data source quality)
 - [ ] Add "what happened next" tracking — alert if receiving wallet sells within 1 hour (investment utility)
 
@@ -115,6 +117,6 @@
 ## Notes
 
 - **Nansen credit form:** Submitted May 19, awaiting response
-- **Gemini quota:** 5 req/min, 20/day. Batching helps stay under limit.
+- **Groq quota:** 30 RPM, 1,000/day on free tier. No batching needed.
 - **Render free tier:** 512MB RAM, sleeps after 15 min idle. UptimeRobot pings every 5 min.
 - **Deadline:** June 16, 2026 — ~4 weeks remaining
