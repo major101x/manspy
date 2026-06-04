@@ -213,21 +213,52 @@ export class AnomalyService {
       }
     }
 
-    return `Analyze the following transaction for patterns and risk:
+    return `Analyze the following transaction for patterns and risk.
 
+Transaction data:
 Sender: ${tx.from} — ${fromLabel}
 Recipient: ${tx.to ?? 'Contract Deployment'} — ${toLabel}
 Value: ${tokenLabel ?? `${Number(tx.value ?? 0) / 1e18} MNT`} (~$${(usdValue ?? 0).toLocaleString()})
 ${historyBlock}
 ${nansenBlock}
 
-Identify the pattern and risk. If the sender is a known CEX/bridge/protocol, name it. If multiple rapid transfers exist, note the batch pattern. If the recipient is new but just received multiple transfers, do NOT call it "new wallet funding" for each — describe the batch behavior.
+Pattern definitions:
+- batch_transfer: multiple rapid transfers between same pair
+- cex_withdrawal: funds leaving exchange hot wallet
+- bridge_deposit: moving to bridge contract
+- new_wallet_funding: first significant inflow to fresh address
+- contract_interaction: calling a smart contract (DEX, lending, etc.)
+- dormant_awakening: wallet inactive >30 days, suddenly active
+- aggregator: routing through swap aggregator
+- whale_distribution: $1M+ holder spreading to multiple wallets
+- smart_money_rotation: Nansen shows profitable trader (>70% win rate) repositioning
+- sell_pressure: funds moving to known CEX deposit address
+- accumulation: repeated inbound transfers, balance growing >20%
+- treasury_rebalance: protocol/DAO wallet moving between internal wallets
+- unknown: none of the above
+
+Summary rules:
+1. NEVER say "Large MNT transfer" or "Sender transfers MNT" — that's restating the obvious.
+2. If recipient holds >$1M per Nansen, mention their top holding: "to USDe-heavy holder" or "to MNT whale".
+3. If wallet has >1000 txs, call it "veteran wallet"; if <50 txs, call it "fresh wallet".
+4. If Nansen PnL shows >70% win rate, flag as "profitable trader" or "Smart Money".
+5. Name the sender if it's a known entity: "Bybit Hot Wallet", "Agni Finance Router", etc.
+6. Always include the dollar amount: "$15K", "$124K" — never vague "large".
+7. State direction + likely intent: "inflow to accumulation wallet" or "outflow from CEX, likely sell".
+
+Example summaries:
+- BAD: "Large MNT transfer from low-holding wallet"
+  GOOD: "$15K MNT to USDe-heavy holder ($45M portfolio) — possible OTC or rebalancing"
+- BAD: "Sender transfers MNT to recipient in large batch"
+  GOOD: "Bybit chunked $100K MNT to fresh wallet in 3 rapid transfers — automated CEX payout"
+- BAD: "Contract interaction with medium risk"
+  GOOD: "$124K MNT to veteran wallet (1,247 txs) with diverse $12M holdings — treasury movement"
 
 Respond in JSON with these exact keys:
 {
-  "pattern": "batch_transfer|cex_withdrawal|bridge_deposit|new_wallet_funding|contract_interaction|dormant_awakening|aggregator|unknown",
+  "pattern": "batch_transfer|cex_withdrawal|bridge_deposit|new_wallet_funding|contract_interaction|dormant_awakening|aggregator|whale_distribution|smart_money_rotation|sell_pressure|accumulation|treasury_rebalance|unknown",
   "risk_level": "low|medium|high",
-  "summary": "One concise sentence, max 25 words, describing what happened and why it matters.",
+  "summary": "One concise sentence, max 30 words, using the rules above.",
   "confidence": 0.0-1.0
 }`;
   }
