@@ -32,10 +32,18 @@ No accessible, real-time, AI-powered alert system exists specifically for Mantle
 
 **AI-powered intelligence.** Flagged transactions are analyzed by Groq (llama-3.3-70b-versatile), which identifies patterns (CEX withdrawals, batch transfers, dormant wallet activation, whale distribution), names known entities (Bybit Hot Wallet, Agni Finance), and assesses risk. Unknown addresses are enriched with Nansen profiler data (holdings, PnL, activity) for deeper context. AI analysis appends instantly — under 2 seconds.
 
-**User control.** All configuration is self-serve via Telegram commands:
+**Aggregated flow signals.** Beyond per-transaction alerts, ManSpy aggregates the rolling transaction stream into market-wide signals — net CEX flow (withdrawals vs. deposits), top accumulating wallets, and distribution waves — surfaced on demand via `/flows`. The same flow context feeds the AI prompt, so summaries lead with the aggregate ("3rd Bybit outflow in 30m, $X cumulative") instead of restating a single transfer.
+
+**Verifiable on-chain audit.** Every AI verdict is logged to the `ManSpyAlertLog` contract on Mantle Sepolia. The `/contract` command surfaces the verified contract and a live count of verdicts logged — a tamper-proof, auditable track record for the agent.
+
+**User control.** All configuration is self-serve via Telegram commands (registered with Telegram's command menu, so they appear in the `/` autocomplete):
 - `/watch <address> <label>` — track a specific wallet
+- `/unwatch <address>` — stop tracking a wallet
+- `/list` — show tracked wallets
 - `/threshold <usd>` — set minimum alert value
 - `/alerts on|off` — toggle notifications
+- `/flows` — live market flow digest (net CEX flow, top accumulators, distribution waves)
+- `/contract` — on-chain audit trail (contract + live verdict count)
 - `/status` — view current settings and rate limit usage
 
 ---
@@ -112,6 +120,8 @@ Every AI decision is now auditable on-chain, creating a verifiable track record 
 | Real-time whale detection | Monitors all Mantle blocks, alerts on transactions above user threshold |
 | Wallet tracking | Register any address with a custom label, monitor all its transactions |
 | AI anomaly analysis | Groq-powered instant pattern detection with Nansen enrichment and risk assessment |
+| Aggregated flow signals | `/flows` digest: net CEX flow, top accumulators, distribution waves; same context enriches every AI summary |
+| On-chain audit trail | `/contract` surfaces the verified Mantle Sepolia contract and a live count of AI verdicts logged |
 | Nansen enrichment | Unknown addresses enriched with holdings, PnL, and transaction history |
 | Rate limiting | 10 alerts per hour per user, with status visibility |
 | Production reliability | Health checks, graceful shutdown, automatic crash recovery, exponential backoff reconnection |
@@ -130,6 +140,11 @@ curl -X POST https://manspy.onrender.com/test/alert \
 
 # View recent anomaly analysis results
 curl https://manspy.onrender.com/test/last-anomaly
+
+# Seed a demo flow scenario (CEX outflow + distribution wave + accumulator),
+# then send /flows in Telegram to see the digest light up
+curl -X POST https://manspy.onrender.com/test/seed-flows \
+  -H "Content-Type: application/json" -d '{}'
 ```
 
 Health check:
@@ -211,7 +226,7 @@ Freemium tiers with clear upgrade paths:
 src/
 ├── bot/                    # Telegram command handlers
 ├── common/
-│   ├── chain-intel/        # Address labels + transaction buffer
+│   ├── chain-intel/        # Address labels + tx buffer + flow aggregator
 │   └── prisma/             # Database client
 ├── config/                 # Environment configuration
 ├── detection/              # Threshold + wallet matching + rate limiting

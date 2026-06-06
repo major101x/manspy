@@ -11,7 +11,7 @@
 - [x] Test `/test/alert` endpoint on production (verified — fires instantly to chat)
 - [x] Test AI analysis appends (verified — Gemini appends pattern + risk)
 - [x] Verify smart contract on-chain logging (verified — tx `0x69bbeb...` on Mantle Sepolia)
-- [ ] Record Scene 1-9 using demo script (`docs/demo-script.md`)
+- [ ] Record Scene 1-10 using demo script (`docs/demo-script.md`)
 - [ ] Edit out 3-min wait between Scene 4 and 5
 - [ ] Export at 1080p, 60fps
 - [ ] Upload to YouTube / Loom / Google Drive
@@ -40,7 +40,7 @@
 
 ### 4. Business Model Slide
 - [x] Already documented in README + `docs/business-model.md`
-- [ ] Include in demo video (Scene 8)
+- [ ] Include in demo video (Scene 9)
 
 **Time:** N/A
 
@@ -54,7 +54,8 @@
   - Redis cache (7-day TTL) minimizes API calls
   - Fallback to standard AI analysis if Nansen fails
   - **Impact:** Bumps "Data source quality" from ~10/15 to ~14/15
-- [ ] Add `/trends` command — top moving wallets in last 24h (investment utility)
+- [x] Add aggregated flow command — `/flows` digest (net CEX flow, top accumulators, distribution waves) supersedes the planned `/trends`; same flow context injected into the Groq prompt
+  - **Impact:** Moves "Insight value" from restating single txs toward actionable aggregate signals
 - [ ] Create simple web dashboard — static HTML showing recent alerts + patterns (insight value + scalability)
 - [x] Replace Gemini with Groq + eliminate batching — instant AI analysis, 30 RPM, 1,000/day
 - [x] Add defensive null checks in Nansen prompt building — fixes production crashes
@@ -105,6 +106,10 @@
 - [x] Nansen integration plan written and deferred (`docs/nansen-integration-plan.md`)
 - [x] Nansen profiler trio integrated (current-balance, pnl-summary, transactions)
 - [x] Demo script written
+- [x] Aggregated flow signals (`FlowAggregatorService`) + `/flows` command + flow context in Groq prompt
+- [x] On-chain audit visibility — `/contract` command (`AlertLogService.getStats`)
+- [x] Telegram command menu registered via `setMyCommands` on launch
+- [x] `POST /test/seed-flows` demo-seeding endpoint
 
 ---
 
