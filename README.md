@@ -30,7 +30,7 @@ No accessible, real-time, AI-powered alert system exists specifically for Mantle
 
 **Dual detection.** Every transaction is checked against two criteria: the user's configured USD threshold, and any wallets they have registered for tracking.
 
-**AI-powered intelligence.** Flagged transactions are analyzed by Google's Gemini AI, which identifies patterns (CEX withdrawals, batch transfers, dormant wallet activation), names known entities (Bybit Hot Wallet, Agni Finance), and assesses risk. Alerts are sent instantly; AI analysis appends asynchronously within 3 minutes.
+**AI-powered intelligence.** Flagged transactions are analyzed by Groq (llama-3.3-70b-versatile), which identifies patterns (CEX withdrawals, batch transfers, dormant wallet activation, whale distribution), names known entities (Bybit Hot Wallet, Agni Finance), and assesses risk. Unknown addresses are enriched with Nansen profiler data (holdings, PnL, activity) for deeper context. AI analysis appends instantly — under 2 seconds.
 
 **User control.** All configuration is self-serve via Telegram commands:
 - `/watch <address> <label>` — track a specific wallet
@@ -44,7 +44,7 @@ No accessible, real-time, AI-powered alert system exists specifically for Mantle
 
 [Link to 4-minute demo video]
 
-The video demonstrates: real-time alert firing, AI analysis appending, wallet tracking configuration, batching intelligence, and production infrastructure.
+The video demonstrates: real-time alert firing, instant AI analysis with Nansen enrichment, wallet tracking configuration, rapid alert handling, and production infrastructure.
 
 ---
 
@@ -59,7 +59,7 @@ graph TD
 
     E --> F[Threshold Filter]
     E --> G[Wallet Tracker]
-    E --> H[AI Anomaly Agent <br> Gemini]
+    E --> H[AI Anomaly Agent <br> Groq]
 
     H --> I[Telegram Bot <br> Telegraf]
     H --> J[Smart Contract <br> Mantle Sepolia]
@@ -72,7 +72,7 @@ graph TD
 3. `TokenParserService` parses ERC-20 Transfer events from receipts
 4. `PriceService` converts token amounts to USD (CoinGecko primary, Bybit fallback)
 5. `DetectionService` matches transactions against user thresholds and tracked wallets
-6. `AnomalyService` batches rapid same-pair transfers and sends to Gemini for pattern analysis
+6. `AnomalyService` enriches unknown addresses via Nansen profiler trio, then sends to Groq for instant pattern analysis
 7. `AlertLogService` logs the AI result on-chain via `ManSpyAlertLog` smart contract
 8. `TelegrafService` delivers alerts to Telegram with inline action buttons
 
@@ -101,7 +101,7 @@ The `ManSpyAlertLog` contract permanently records every AI anomaly analysis on M
 
 **Verified transaction:** [`0x69bbeb...01e844`](https://sepolia.mantlescan.xyz/tx/0x69bbeb627ec155819328266bb563f9dd6c3e777214305bfa7c65931daf01e844) — first on-chain alert logged (pattern: `cex_withdrawal`, confidence: 95%).
 
-Every Gemini AI decision is now auditable on-chain, creating a verifiable track record for the agent.
+Every AI decision is now auditable on-chain, creating a verifiable track record for the agent.
 
 ---
 
@@ -111,8 +111,8 @@ Every Gemini AI decision is now auditable on-chain, creating a verifiable track 
 |---|---|
 | Real-time whale detection | Monitors all Mantle blocks, alerts on transactions above user threshold |
 | Wallet tracking | Register any address with a custom label, monitor all its transactions |
-| AI anomaly analysis | Gemini-powered pattern detection with entity labels and risk assessment |
-| Batching intelligence | Rapid same-pair transfers are batched into one AI analysis, reducing API costs by 60% |
+| AI anomaly analysis | Groq-powered instant pattern detection with Nansen enrichment and risk assessment |
+| Nansen enrichment | Unknown addresses enriched with holdings, PnL, and transaction history |
 | Rate limiting | 10 alerts per hour per user, with status visibility |
 | Production reliability | Health checks, graceful shutdown, automatic crash recovery, exponential backoff reconnection |
 
@@ -152,7 +152,7 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your TELEGRAM_BOT_TOKEN, GEMINI_API_KEY, DATABASE_URL, REDIS_URL
+# Edit .env with your TELEGRAM_BOT_TOKEN, GROQ_API_KEY, DATABASE_URL, REDIS_URL
 
 # Database setup
 npx prisma migrate dev
@@ -165,7 +165,8 @@ npm run start:dev
 
 **Required environment variables:**
 - `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/botfather)
-- `GEMINI_API_KEY` — from [Google AI Studio](https://aistudio.google.com)
+- `GROQ_API_KEY` — from [Groq Console](https://console.groq.com)
+- `NANSEN_API_KEY` — from [Nansen](https://nansen.ai) (optional, for wallet enrichment)
 - `DATABASE_URL` — PostgreSQL connection string
 - `REDIS_URL` — Redis connection string (optional, for price caching)
 - `PORT` — HTTP server port (default 3000)
@@ -181,7 +182,7 @@ Freemium tiers with clear upgrade paths:
 | Tier | Price | Included |
 |---|---|---|
 | **Free** | $0 | 10 alerts/hour, basic AI analysis, wallet tracking |
-| **Pro** | $12/mo | Unlimited alerts, priority AI analysis (faster batching), custom thresholds, Nansen wallet profiling |
+| **Pro** | $12/mo | Unlimited alerts, instant AI analysis, custom thresholds, Nansen wallet profiling |
 | **Enterprise** | $99/mo | API access, custom single-wallet analysis, Nansen Smart Money labels + premium entity tags, dedicated support |
 
 **Growth path:** Mantle → Multi-chain (Ethereum, Arbitrum) → Web dashboard → White-label API for exchanges.
@@ -195,9 +196,10 @@ Freemium tiers with clear upgrade paths:
 | Backend | NestJS 11, TypeScript 5 |
 | Telegram Bot | Telegraf 4 |
 | Blockchain | viem, Mantle RPC (WebSocket) |
-| AI | Google Gemini API |
+| AI | Groq API (llama-3.3-70b-versatile) |
 | Database | PostgreSQL 16 + Prisma 6 |
-| Cache | Redis 7 (optional) |
+| Enrichment | Nansen API (profiler trio) |
+| Cache | Redis 7 (optional, for price + Nansen data) |
 | Price Data | CoinGecko API + Bybit fallback |
 | Deployment | Render (free tier) |
 
@@ -213,9 +215,10 @@ src/
 │   └── prisma/             # Database client
 ├── config/                 # Environment configuration
 ├── detection/              # Threshold + wallet matching + rate limiting
-├── anomaly/                # Gemini AI analysis + batching
+├── anomaly/                # Groq AI analysis + Nansen enrichment
 ├── ingestion/              # Mantle WebSocket listener + token parsing
 ├── price/                  # MNT/USD price service
+├── nansen/                 # Nansen profiler trio integration
 ├── web3/                   # On-chain alert logging (Mantle Sepolia)
 ├── test/                   # E2E test endpoints
 ├── app.module.ts
