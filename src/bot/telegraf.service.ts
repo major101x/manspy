@@ -276,6 +276,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       this.logger.log(`@${me.username} authenticated, starting launch`);
       this.launch({ dropPendingUpdates: true });
       this.setupRuntimeErrorHandling();
+      void this.registerCommandMenu();
     } catch (err: any) {
       if (retries >= 5) {
         this.logger.error(
@@ -289,6 +290,26 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
         `Bot unavailable (${err?.message}), retrying in ${delay}ms...`,
       );
       setTimeout(() => this.initBotWithRetry(retries + 1), delay);
+    }
+  }
+
+  /** Registers the command list with Telegram so the menu button + autocomplete appear. */
+  private async registerCommandMenu() {
+    try {
+      await this.telegram.setMyCommands([
+        { command: 'watch', description: 'Track a wallet: /watch <address> <label>' },
+        { command: 'unwatch', description: 'Stop tracking a wallet: /unwatch <address>' },
+        { command: 'list', description: 'Show your tracked wallets' },
+        { command: 'threshold', description: 'Set minimum alert value: /threshold <usd>' },
+        { command: 'alerts', description: 'Toggle alerts: /alerts on|off' },
+        { command: 'flows', description: 'Live Mantle flow digest (CEX flow, accumulators)' },
+        { command: 'contract', description: 'On-chain audit trail' },
+        { command: 'status', description: 'Your current settings' },
+        { command: 'help', description: 'Command reference' },
+      ]);
+      this.logger.log('Command menu registered with Telegram');
+    } catch (e: any) {
+      this.logger.warn(`Failed to register command menu: ${e?.message}`);
     }
   }
 
