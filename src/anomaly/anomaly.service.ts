@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
 import { AddressLabelService } from '../common/chain-intel/address-label.service';
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
+import { FlowAggregatorService } from '../common/chain-intel/flow-aggregator.service';
 import { AlertLogService } from '../web3/alert-log.service';
 
 export interface WalletContext {
@@ -40,6 +41,7 @@ export class AnomalyService {
   constructor(
     private labels: AddressLabelService,
     private buffer: RecentTxBufferService,
+    private flow: FlowAggregatorService,
     private alertLog: AlertLogService,
   ) {
     this.ai = new OpenAI({
@@ -103,23 +105,39 @@ export class AnomalyService {
         pattern: parsed.pattern ?? 'unknown',
         risk_level: parsed.risk_level ?? 'unknown',
         summary: parsed.summary,
-        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+        confidence:
+          typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
       };
 
-      this.recentResults.push({ timestamp: Date.now(), pairKey, result, batchSize: 1 });
+      this.recentResults.push({
+        timestamp: Date.now(),
+        pairKey,
+        result,
+        batchSize: 1,
+      });
       if (this.recentResults.length > 20) this.recentResults.shift();
 
       onResult(result, 1);
 
       // Log to blockchain
       this.alertLog
-        .logAlert(tx.txHash, result.pattern, result.risk_level, result.confidence)
+        .logAlert(
+          tx.txHash,
+          result.pattern,
+          result.risk_level,
+          result.confidence,
+        )
         .catch((e) => this.logger.warn(`On-chain log failed: ${e?.message}`));
 
       this.logger.log(`AI anomaly (${result.confidence}): ${result.summary}`);
     } catch (e: any) {
       this.logger.warn(`Groq analysis failed for ${pairKey}: ${e?.message}`);
-      this.recentResults.push({ timestamp: Date.now(), pairKey, result: null, batchSize: 1 });
+      this.recentResults.push({
+        timestamp: Date.now(),
+        pairKey,
+        result: null,
+        batchSize: 1,
+      });
       if (this.recentResults.length > 20) this.recentResults.shift();
       onResult(null, 1);
     }
@@ -134,10 +152,15 @@ export class AnomalyService {
     // Enrich with Nansen (parallel, non-blocking if fails)
     const [fromEnriched, toEnriched] = await Promise.all([
       this.labels.lookupWithEnrichment(tx.from),
-      tx.to ? this.labels.lookupWithEnrichment(tx.to) : Promise.resolve({ label: null, nansen: null }),
+      tx.to
+        ? this.labels.lookupWithEnrichment(tx.to)
+        : Promise.resolve({ label: null, nansen: null }),
     ]);
 
-    const fromLabel = this.labels.describeEnriched(fromEnriched, wallet.fromTxCount);
+    const fromLabel = this.labels.describeEnriched(
+      fromEnriched,
+      wallet.fromTxCount,
+    );
     const toLabel = this.labels.describeEnriched(toEnriched, wallet.toTxCount);
 
     // Recent history for sender and recipient
@@ -174,6 +197,21 @@ export class AnomalyService {
       }
     }
 
+    // Aggregated flow signals over a rolling window (the differentiator vs. single-tx restating)
+    const flow = this.flow.computeFlowContext(tx);
+    const windowMin = Math.round(flow.windowMs / 60000);
+    let flowBlock = `\nFlow analysis (last ${windowMin}m):\n`;
+    flowBlock += `  - Sender net: ${this.fmtSigned(flow.senderNetUsd)} across ${flow.senderTxCount} tx(s)\n`;
+    if (tx.to) {
+      flowBlock += `  - Recipient net: ${this.fmtSigned(flow.recipientNetUsd)} across ${flow.recipientTxCount} tx(s)\n`;
+    }
+    if (flow.pairCount > 1) {
+      flowBlock += `  - This pair: ${this.ordinal(flow.pairOrdinal)} transfer, $${Math.round(flow.pairCumulativeUsd).toLocaleString()} cumulative (velocity: ${flow.pairVelocity})\n`;
+    }
+    if (flow.cexNote) {
+      flowBlock += `  - CEX context: ${flow.cexNote}\n`;
+    }
+
     // Nansen intelligence context
     let nansenBlock = '';
     if (fromEnriched.nansen || toEnriched.nansen) {
@@ -185,13 +223,19 @@ export class AnomalyService {
         nansenBlock += `\n${shortAddr}:\n`;
 
         if (enriched.nansen.currentBalance?.data?.length) {
-          const totalUsd = enriched.nansen.currentBalance.data.reduce((sum, t) => sum + (t.value_usd ?? 0), 0);
+          const totalUsd = enriched.nansen.currentBalance.data.reduce(
+            (sum, t) => sum + (t.value_usd ?? 0),
+            0,
+          );
           if (totalUsd > 0) {
             nansenBlock += `  - Holdings: $${(totalUsd / 1e6).toFixed(2)}M total\n`;
             const top3 = enriched.nansen.currentBalance.data.slice(0, 3);
             const topLines = top3
-              .filter(t => (t.value_usd ?? 0) > 0)
-              .map(t => `${t.token_symbol} $${((t.value_usd ?? 0) / 1e6).toFixed(2)}M`)
+              .filter((t) => (t.value_usd ?? 0) > 0)
+              .map(
+                (t) =>
+                  `${t.token_symbol} $${((t.value_usd ?? 0) / 1e6).toFixed(2)}M`,
+              )
               .join(', ');
             if (topLines) nansenBlock += `    Top: ${topLines}\n`;
           }
@@ -205,7 +249,10 @@ export class AnomalyService {
         }
 
         if (enriched.nansen.transactions) {
-          const txCount = enriched.nansen.transactions.total_count ?? enriched.nansen.transactions.items?.length ?? 0;
+          const txCount =
+            enriched.nansen.transactions.total_count ??
+            enriched.nansen.transactions.items?.length ??
+            0;
           if (txCount > 0) {
             nansenBlock += `  - Activity: ${txCount.toLocaleString()} total transactions\n`;
           }
@@ -220,6 +267,7 @@ Sender: ${tx.from} — ${fromLabel}
 Recipient: ${tx.to ?? 'Contract Deployment'} — ${toLabel}
 Value: ${tokenLabel ?? `${Number(tx.value ?? 0) / 1e18} MNT`} (~$${(usdValue ?? 0).toLocaleString()})
 ${historyBlock}
+${flowBlock}
 ${nansenBlock}
 
 Pattern definitions:
@@ -245,6 +293,7 @@ Summary rules:
 5. Name the sender if it's a known entity: "Bybit Hot Wallet", "Agni Finance Router", etc.
 6. Always include the dollar amount: "$15K", "$124K" — never vague "large".
 7. State direction + likely intent: "inflow to accumulation wallet" or "outflow from CEX, likely sell".
+8. If the Flow analysis shows this is a repeated/rapid pair (ordinal >1), lead with the aggregate, not the single tx: "3rd Bybit outflow in 30m, $X cumulative" beats "Bybit outflow $Y".
 
 Example summaries:
 - BAD: "Large MNT transfer from low-holding wallet"
@@ -261,5 +310,16 @@ Respond in JSON with these exact keys:
   "summary": "One concise sentence, max 30 words, using the rules above.",
   "confidence": 0.0-1.0
 }`;
+  }
+
+  private fmtSigned(usd: number): string {
+    const sign = usd < 0 ? '-' : '+';
+    return `${sign}$${Math.round(Math.abs(usd)).toLocaleString()}`;
+  }
+
+  private ordinal(n: number): string {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
   }
 }

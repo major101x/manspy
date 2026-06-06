@@ -1,11 +1,16 @@
 import { Module } from '@nestjs/common';
 import { AddressLabelService } from './address-label.service';
 import { RecentTxBufferService } from './recent-tx-buffer.service';
+import { FlowAggregatorService } from './flow-aggregator.service';
 import { NansenModule } from '../../nansen/nansen.module';
 
 @Module({
   imports: [NansenModule],
-  providers: [AddressLabelService, RecentTxBufferService],
-  exports: [AddressLabelService, RecentTxBufferService],
+  providers: [
+    AddressLabelService,
+    RecentTxBufferService,
+    FlowAggregatorService,
+  ],
+  exports: [AddressLabelService, RecentTxBufferService, FlowAggregatorService],
 })
 export class ChainIntelModule {}

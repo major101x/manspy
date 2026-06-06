@@ -10,10 +10,16 @@ interface BufferedTx {
 
 @Injectable()
 export class RecentTxBufferService {
-  private readonly maxSize = 200;
+  // In-memory, ephemeral (resets on restart). Sized so a ~1h window of flow
+  // aggregation has meaningful depth; /flows reports its actual coverage.
+  private readonly maxSize = 1000;
   private buffer: BufferedTx[] = [];
 
-  add(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined) {
+  add(
+    tx: NormalizedTransaction,
+    usdValue: number,
+    tokenLabel: string | undefined,
+  ) {
     this.buffer.push({ tx, usdValue, tokenLabel, timestamp: Date.now() });
     if (this.buffer.length > this.maxSize) {
       this.buffer.shift();
@@ -37,8 +43,7 @@ export class RecentTxBufferService {
     return this.buffer
       .filter(
         (b) =>
-          b.tx.from.toLowerCase() === f &&
-          (b.tx.to ?? '').toLowerCase() === t,
+          b.tx.from.toLowerCase() === f && (b.tx.to ?? '').toLowerCase() === t,
       )
       .slice(-limit);
   }

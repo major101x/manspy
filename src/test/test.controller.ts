@@ -12,6 +12,17 @@ interface TestAlertDto {
   tokenLabel?: string;
 }
 
+interface SeedFlowsDto {
+  // Multiplier on the default USD amounts, e.g. 2 doubles every leg. Default 1.
+  scale?: number;
+}
+
+// Bybit Hot Wallet — labeled 'cex' in AddressLabelService
+const BYBIT = '0x0000004eba872864a71b957180eb17dff71bb8f1';
+// Synthetic counterparty wallets (lowercase, as the normalizer produces)
+const W = (n: number) =>
+  `0x${n.toString(16).padStart(40, '0')}` as string;
+
 @Controller('test')
 export class TestController {
   private readonly logger = new Logger(TestController.name);
@@ -97,6 +108,50 @@ export class TestController {
       expectedAlerts: messageIds.size,
       targetChatId: dto.chatId,
       note: 'Check Telegram and wait up to 3min for AI analysis',
+    };
+  }
+
+  @Post('seed-flows')
+  seedFlows(@Body() dto: SeedFlowsDto) {
+    const s = dto?.scale && dto.scale > 0 ? dto.scale : 1;
+    this.logger.log(`[TEST] Seeding flow buffer (scale=${s})`);
+
+    // Scenario:
+    //  - Bybit withdraws to 4 distinct fresh wallets → distribution wave + $87K outflow
+    //  - 1 deposit back into Bybit → $30K inflow (sell-side)
+    //  - W(1) also receives a second inbound → top accumulator
+    // Net CEX flow = 87K out − 30K in = +57K (net withdrawal / accumulation signal)
+    const legs: Array<{ from: string; to: string; usd: number }> = [
+      { from: BYBIT, to: W(1), usd: 42000 },
+      { from: BYBIT, to: W(2), usd: 21000 },
+      { from: BYBIT, to: W(3), usd: 15000 },
+      { from: BYBIT, to: W(4), usd: 9000 },
+      { from: W(5), to: BYBIT, usd: 30000 }, // deposit (inflow)
+      { from: W(6), to: W(1), usd: 20000 }, // W(1) accumulates further
+    ];
+
+    let i = 0;
+    for (const leg of legs) {
+      const usd = Math.round(leg.usd * s);
+      const tx: NormalizedTransaction = {
+        txHash: `0xseed${Date.now().toString(16)}${(i++).toString(16)}`,
+        from: leg.from,
+        to: leg.to,
+        value: 0n,
+        gas: 21000n,
+        gasPrice: 1000000000n,
+        blockNumber: 12345678n,
+        timestamp: Math.floor(Date.now() / 1000),
+      };
+      this.buffer.add(tx, usd, `${(usd / 0.65).toFixed(0)} MNT`);
+    }
+
+    this.logger.log(`[TEST] Seeded ${legs.length} flow legs into buffer`);
+    return {
+      status: 'seeded',
+      legs: legs.length,
+      scale: s,
+      note: 'Send /flows in Telegram to see the digest.',
     };
   }
 
