@@ -19,17 +19,12 @@
 **Time:** 2-3 hours  
 **Dependencies:** Production deploy with test endpoints enabled
 
-### 2. Hackathon Submission Writeup
-- [ ] Project description (500 words max)
-- [ ] Technical architecture summary
-- [ ] Link to demo video
-- [ ] Link to live bot: @ManSpyAIBot
-- [ ] Link to deployed service: https://manspy.onrender.com
-- [ ] GitHub repo: https://github.com/major101x/manspy
-- [ ] Team info (solo: Olayiwola Aroyeun)
-- [ ] Screenshots of alerts + AI analysis
+### 2. Hackathon Submission
+- [x] Project description, architecture, links — covered in README.md
+- [ ] Screenshots of alerts + AI analysis (for DoraHacks upload)
+- [ ] Link to demo video (after recording)
 
-**Time:** 2-3 hours  
+**Time:** 30 min  
 **Dependencies:** Demo video recorded
 
 ---
@@ -37,18 +32,17 @@
 ## High Priority (Should Do)
 
 ### 3. Architecture Diagram
-- [ ] Draw simple diagram: Mantle WS → NestJS → Detection → Gemini → Telegram
+- [x] Created in draw.io
 - [ ] Export as PNG/SVG for slides
 - [ ] Include in demo video (Scene 2)
 
-**Time:** 30 min
+**Time:** 10 min
 
 ### 4. Business Model Slide
-- [ ] Create slide: Free / Pro ($9/mo) / Enterprise ($49/mo)
-- [ ] Include Nansen integration mention
+- [x] Already documented in README + `docs/business-model.md`
 - [ ] Include in demo video (Scene 8)
 
-**Time:** 30 min
+**Time:** N/A
 
 ---
 
