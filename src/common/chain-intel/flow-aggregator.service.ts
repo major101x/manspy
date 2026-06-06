@@ -43,6 +43,9 @@ export interface FlowContext {
 
 const HOUR_MS = 3_600_000;
 const HALF_HOUR_MS = 1_800_000;
+// Floor for surfacing an accumulator — below this, net flow is rounding noise
+// that would display as "+$0".
+const MIN_ACCUMULATOR_USD = 1;
 
 /**
  * Turns the ephemeral RecentTxBuffer into aggregated flow signals — market-wide
@@ -117,7 +120,7 @@ export class FlowAggregatorService {
 
     const topAccumulators: AccumulatorEntry[] = [...netByAddress.entries()]
       .map(([address, netUsd]) => ({ address, netUsd }))
-      .filter((e) => e.netUsd > 0)
+      .filter((e) => e.netUsd >= MIN_ACCUMULATOR_USD)
       .sort((a, b) => b.netUsd - a.netUsd)
       .slice(0, 3);
 

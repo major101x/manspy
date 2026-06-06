@@ -95,6 +95,13 @@ describe('FlowAggregatorService', () => {
       ).toBeUndefined();
     });
 
+    it('excludes sub-dollar (rounding-noise) accumulators', () => {
+      addAt(WALLET_A, WALLET_B, 0.3, 5); // B nets +$0.30 → must not surface as "+$0"
+      addAt(BYBIT, WALLET_C, 50, 4); // C nets +$50 → surfaces
+      const f = flow.computeMarketFlows();
+      expect(f.topAccumulators.map((a) => a.address)).toEqual([WALLET_C]);
+    });
+
     it('detects distribution waves (sender to >=3 distinct recipients)', () => {
       addAt(BYBIT, WALLET_A, 1000, 10);
       addAt(BYBIT, WALLET_B, 1000, 9);
