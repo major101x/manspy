@@ -197,6 +197,22 @@ export class FlowAggregatorService {
     };
   }
 
+  /**
+   * Recent buffered activity for a single address (net flow + tx count) over a
+   * window. Used by the on-demand wallet analyser, which has no tx to derive a
+   * full FlowContext from. Reflects only this session's in-memory buffer.
+   */
+  computeAddressActivity(
+    address: string,
+    windowMs = HOUR_MS,
+  ): { netUsd: number; txCount: number } {
+    const cutoff = Date.now() - windowMs;
+    const txs = this.buffer
+      .getRecentForAddress(address, 1000)
+      .filter((b) => b.timestamp >= cutoff);
+    return { netUsd: this.netFor(address, txs), txCount: txs.length };
+  }
+
   /** net = inbound (address is recipient) - outbound (address is sender) */
   private netFor(
     address: string,

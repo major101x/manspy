@@ -176,4 +176,21 @@ describe('FlowAggregatorService', () => {
       expect(ctx.cexNote).toContain('sell-side');
     });
   });
+
+  describe('computeAddressActivity', () => {
+    it('returns signed net flow and tx count over the window', () => {
+      addAt(WALLET_B, WALLET_A, 5000, 10); // A receives 5k
+      addAt(WALLET_A, WALLET_C, 2000, 5); // A sends 2k
+      const act = flow.computeAddressActivity(WALLET_A);
+      expect(act.txCount).toBe(2);
+      expect(act.netUsd).toBe(3000); // +5000 - 2000
+    });
+
+    it('excludes activity outside the window', () => {
+      addAt(WALLET_B, WALLET_A, 5000, 120); // 2h ago, outside 1h window
+      const act = flow.computeAddressActivity(WALLET_A);
+      expect(act.txCount).toBe(0);
+      expect(act.netUsd).toBe(0);
+    });
+  });
 });

@@ -42,6 +42,7 @@ No accessible, real-time, AI-powered alert system exists specifically for Mantle
 - `/list` — show tracked wallets
 - `/threshold <usd>` — set minimum alert value
 - `/alerts on|off` — toggle notifications
+- `/analyse <address>` — on-demand AI profile of any wallet (Nansen holdings, PnL, behaviour)
 - `/flows` — live market flow digest (net CEX flow, top accumulators, distribution waves)
 - `/contract` — on-chain audit trail (contract + live verdict count)
 - `/status` — view current settings and rate limit usage
@@ -120,6 +121,7 @@ Every AI decision is now auditable on-chain, creating a verifiable track record 
 | Real-time whale detection | Monitors all Mantle blocks, alerts on transactions above user threshold |
 | Wallet tracking | Register any address with a custom label, monitor all its transactions |
 | AI anomaly analysis | Groq-powered instant pattern detection with Nansen enrichment and risk assessment |
+| On-demand wallet analysis | `/analyse <address>` returns an AI wallet profile — entity label, Nansen holdings/PnL, recent flow, pattern + risk verdict |
 | Aggregated flow signals | `/flows` digest: net CEX flow, top accumulators, distribution waves; same context enriches every AI summary |
 | On-chain audit trail | `/contract` surfaces the verified Mantle Sepolia contract and a live count of AI verdicts logged |
 | Nansen enrichment | Unknown addresses enriched with holdings, PnL, and transaction history |

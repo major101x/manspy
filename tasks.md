@@ -110,6 +110,7 @@
 - [x] On-chain audit visibility — `/contract` command (`AlertLogService.getStats`)
 - [x] Telegram command menu registered via `setMyCommands` on launch
 - [x] `POST /test/seed-flows` demo-seeding endpoint
+- [x] On-demand wallet analysis — `/analyse <address>` command (`AnomalyService.analyzeWallet` + Nansen trio + buffer activity → Groq verdict)
 
 ---
 

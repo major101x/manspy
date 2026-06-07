@@ -6,10 +6,15 @@ import { UserService } from './user.service';
 import { RateLimitService } from '../detection/rate-limit.service';
 import { FlowAggregatorService } from '../common/chain-intel/flow-aggregator.service';
 import { AlertLogService } from '../web3/alert-log.service';
+import { AnomalyService, WalletAnalysis } from '../anomaly/anomaly.service';
+
+const ANALYSE_COOLDOWN_MS = 20_000;
 
 @Injectable()
 export class TelegrafService extends Telegraf implements OnModuleDestroy {
   private readonly logger = new Logger(TelegrafService.name);
+  /** Per-chat cooldown for /analyse (ephemeral; protects Nansen credits). */
+  private lastAnalyseAt = new Map<number, number>();
 
   constructor(
     config: ConfigService,
@@ -17,6 +22,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     private rateLimit: RateLimitService,
     private flow: FlowAggregatorService,
     private alertLog: AlertLogService,
+    private anomaly: AnomalyService,
   ) {
     super(config.get<string>('TELEGRAM_BOT_TOKEN')!);
 
@@ -31,6 +37,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
           '/list — show tracked wallets\n' +
           '/threshold <usd> — set minimum alert value\n' +
           '/alerts on|off — toggle alerts\n' +
+          '/analyse <address> — AI profile of any wallet\n' +
           '/flows — live Mantle flow digest (CEX flow, accumulators)\n' +
           '/contract — on-chain audit trail\n' +
           '/status — your settings\n' +
@@ -47,6 +54,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
           '/list — show all tracked wallets\n' +
           '/alerts on|off — toggle all alerts\n' +
           '/threshold <usd_amount> — set minimum USD value to alert on (default $50,000)\n' +
+          '/analyse <address> — on-demand AI profile of any wallet (Nansen holdings, PnL, behaviour)\n' +
           '/flows — aggregated market flow digest (net CEX flow, top accumulators, distribution waves)\n' +
           '/contract — view the on-chain audit trail (every AI verdict logged on Mantle)\n' +
           '/status — show bot status and your current settings\n' +
@@ -93,6 +101,53 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
           `Contract: \`${stats.address}\`\n` +
           `Verdicts logged on-chain: *${count}*\n` +
           `Verify: ${stats.explorerUrl}`,
+        { parse_mode: 'Markdown' },
+      );
+    });
+
+    this.command(['analyse', 'analyze'], async (ctx) => {
+      const parts = ctx.message.text.split(/\s+/);
+      if (parts.length < 2 || !isAddress(parts[1])) {
+        return ctx.reply(
+          'Usage: /analyse <address>\nExample: /analyse 0x0000004eba872864a71b957180eb17dff71bb8f1',
+        );
+      }
+      const address = parts[1];
+
+      // Per-chat cooldown — the Nansen trio is credit-metered.
+      const chatId = ctx.chat.id;
+      const last = this.lastAnalyseAt.get(chatId) ?? 0;
+      const elapsed = Date.now() - last;
+      if (elapsed < ANALYSE_COOLDOWN_MS) {
+        const wait = Math.ceil((ANALYSE_COOLDOWN_MS - elapsed) / 1000);
+        return ctx.reply(`⏳ One analysis at a time — try again in ${wait}s.`);
+      }
+      this.lastAnalyseAt.set(chatId, Date.now());
+
+      const placeholder = await ctx.reply(
+        `🔍 Analysing \`${this.shortAddr(address)}\` — pulling Nansen + on-chain activity…`,
+        { parse_mode: 'Markdown' },
+      );
+
+      let analysis: WalletAnalysis;
+      try {
+        analysis = await this.anomaly.analyzeWallet(address);
+      } catch (e: any) {
+        this.logger.warn(`/analyse failed for ${address}: ${e?.message}`);
+        await ctx.telegram.editMessageText(
+          chatId,
+          placeholder.message_id,
+          undefined,
+          '⚠️ Analysis failed — try again shortly.',
+        );
+        return;
+      }
+
+      await ctx.telegram.editMessageText(
+        chatId,
+        placeholder.message_id,
+        undefined,
+        this.formatWalletAnalysis(analysis),
         { parse_mode: 'Markdown' },
       );
     });
@@ -246,6 +301,72 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     return lines.join('\n');
   }
 
+  private formatWalletAnalysis(a: WalletAnalysis): string {
+    if (!a.hasData) {
+      return (
+        `🔍 *Wallet Analysis* — \`${this.shortAddr(a.address)}\`\n\n` +
+        'No Mantle data for this address yet — not a known entity, no Nansen ' +
+        'profile, and no activity seen this session.\n\n' +
+        `🔗 https://mantlescan.xyz/address/${a.address}`
+      );
+    }
+
+    const lines: string[] = [];
+    lines.push(`🔍 *Wallet Analysis* — \`${this.shortAddr(a.address)}\``);
+
+    // Identity line: known label, else Nansen one-liner, else generic.
+    if (a.label) {
+      lines.push(a.label);
+    } else if (a.holdingsUsd && a.holdingsUsd > 0) {
+      const top = a.topHoldings[0];
+      lines.push(
+        `Unlabeled wallet — ${this.fmtUsd(a.holdingsUsd)} holdings` +
+          (top ? `, top: ${top.symbol}` : ''),
+      );
+    } else {
+      lines.push('Unlabeled wallet');
+    }
+
+    if (a.verdict) {
+      lines.push('');
+      lines.push(`🤖 ${a.verdict.pattern} | Risk: ${a.verdict.risk_level}`);
+      lines.push(a.verdict.summary);
+    }
+
+    const facts: string[] = [];
+    if (a.holdingsUsd && a.holdingsUsd > 0) {
+      const top = a.topHoldings
+        .map((t) => `${t.symbol} ${this.fmtUsd(t.valueUsd)}`)
+        .join(', ');
+      facts.push(
+        `Holdings: ${this.fmtUsd(a.holdingsUsd)}` + (top ? `  (${top})` : ''),
+      );
+    }
+    if (a.realizedPnlUsd !== null) {
+      const win =
+        a.winRate !== null ? ` · ${(a.winRate * 100).toFixed(0)}% win` : '';
+      facts.push(
+        `PnL (30d): ${this.fmtSigned(a.realizedPnlUsd)} realized${win}`,
+      );
+    }
+    if (a.totalTxCount !== null) {
+      facts.push(`Activity: ${a.totalTxCount.toLocaleString()} txs`);
+    }
+    if (a.recentTxCount > 0) {
+      facts.push(
+        `Recent (session): ${this.fmtSigned(a.recentNetUsd)} net / ${a.recentTxCount} txs`,
+      );
+    }
+    if (facts.length) {
+      lines.push('');
+      lines.push(...facts);
+    }
+
+    lines.push('');
+    lines.push(`🔗 https://mantlescan.xyz/address/${a.address}`);
+    return lines.join('\n');
+  }
+
   private fmtUsd(usd: number): string {
     const abs = Math.abs(usd);
     if (abs >= 1e6) return `$${(usd / 1e6).toFixed(2)}M`;
@@ -302,6 +423,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
         { command: 'list', description: 'Show your tracked wallets' },
         { command: 'threshold', description: 'Set minimum alert value: /threshold <usd>' },
         { command: 'alerts', description: 'Toggle alerts: /alerts on|off' },
+        { command: 'analyse', description: 'AI profile of any wallet: /analyse <address>' },
         { command: 'flows', description: 'Live Mantle flow digest (CEX flow, accumulators)' },
         { command: 'contract', description: 'On-chain audit trail' },
         { command: 'status', description: 'Your current settings' },

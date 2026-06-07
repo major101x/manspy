@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
-import { AddressLabelService } from '../common/chain-intel/address-label.service';
+import {
+  AddressLabelService,
+  EnrichedLabel,
+} from '../common/chain-intel/address-label.service';
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
 import { FlowAggregatorService } from '../common/chain-intel/flow-aggregator.service';
 import { AlertLogService } from '../web3/alert-log.service';
@@ -18,6 +21,20 @@ export interface AnomalyResult {
   risk_level: string;
   summary: string;
   confidence: number;
+}
+
+export interface WalletAnalysis {
+  address: string;
+  label: string | null; // known-entity name, e.g. "Bybit Hot Wallet"
+  holdingsUsd: number | null; // Nansen current-balance total
+  topHoldings: { symbol: string; valueUsd: number }[];
+  realizedPnlUsd: number | null; // Nansen pnl-summary (30d)
+  winRate: number | null;
+  totalTxCount: number | null; // Nansen transactions.total_count
+  recentNetUsd: number; // from in-memory buffer (this session)
+  recentTxCount: number;
+  verdict: AnomalyResult | null;
+  hasData: boolean; // false when nothing is known about the address
 }
 
 interface AlertTarget {
@@ -141,6 +158,171 @@ export class AnomalyService {
       if (this.recentResults.length > 20) this.recentResults.shift();
       onResult(null, 1);
     }
+  }
+
+  /**
+   * On-demand profile of a single wallet (the /analyse command). Pulls the
+   * Nansen trio (via AddressLabelService), this session's buffered activity,
+   * and a known-entity label, then asks Groq to classify the wallet. Not part
+   * of the alert hot path and never logged on-chain (no txHash to key on).
+   */
+  async analyzeWallet(address: string): Promise<WalletAnalysis> {
+    const enriched = await this.labels.lookupWithEnrichment(address);
+    const activity = this.flow.computeAddressActivity(address);
+
+    // Extract Nansen fields (same shape as buildPrompt uses)
+    let holdingsUsd: number | null = null;
+    const topHoldings: { symbol: string; valueUsd: number }[] = [];
+    if (enriched.nansen?.currentBalance?.data?.length) {
+      holdingsUsd = enriched.nansen.currentBalance.data.reduce(
+        (sum, t) => sum + (t.value_usd ?? 0),
+        0,
+      );
+      for (const t of enriched.nansen.currentBalance.data.slice(0, 3)) {
+        if ((t.value_usd ?? 0) > 0) {
+          topHoldings.push({
+            symbol: t.token_symbol,
+            valueUsd: t.value_usd ?? 0,
+          });
+        }
+      }
+    }
+
+    const realizedPnlUsd =
+      enriched.nansen?.pnlSummary?.realized_pnl_usd ?? null;
+    const winRate = enriched.nansen?.pnlSummary?.win_rate ?? null;
+    const totalTxCount =
+      enriched.nansen?.transactions?.total_count ??
+      enriched.nansen?.transactions?.items?.length ??
+      null;
+
+    const base: WalletAnalysis = {
+      address,
+      label: enriched.label?.name ?? null,
+      holdingsUsd,
+      topHoldings,
+      realizedPnlUsd,
+      winRate,
+      totalTxCount,
+      recentNetUsd: activity.netUsd,
+      recentTxCount: activity.txCount,
+      verdict: null,
+      hasData: false,
+    };
+
+    // Nothing known about this address — skip Groq, let the caller say so.
+    if (!enriched.label && !enriched.nansen && activity.txCount === 0) {
+      return base;
+    }
+    base.hasData = true;
+
+    try {
+      const prompt = this.buildWalletPrompt(base, enriched);
+      const response = await this.ai.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an on-chain intelligence analyst for Mantle Network. You analyze transactions and wallet behavior to identify patterns. You have access to recent transaction history, entity labels, and wallet activity counts. Be concise, factual, and actionable. Never make buy/sell recommendations. Never hallucinate information not in the data.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.1,
+        max_tokens: 256,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content ?? '{}';
+      const parsed = JSON.parse(content);
+      if (parsed.summary) {
+        base.verdict = {
+          pattern: parsed.pattern ?? 'unknown',
+          risk_level: parsed.risk_level ?? 'unknown',
+          summary: parsed.summary,
+          confidence:
+            typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+        };
+      }
+    } catch (e: any) {
+      this.logger.warn(`Wallet analysis failed for ${address}: ${e?.message}`);
+    }
+
+    return base;
+  }
+
+  private buildWalletPrompt(
+    a: WalletAnalysis,
+    enriched: EnrichedLabel,
+  ): string {
+    let dataBlock = `Address: ${a.address}\n`;
+    dataBlock += `Known entity: ${a.label ?? 'none (unlabeled address)'}\n`;
+
+    if (a.holdingsUsd && a.holdingsUsd > 0) {
+      dataBlock += `Holdings: $${(a.holdingsUsd / 1e6).toFixed(2)}M total`;
+      if (a.topHoldings.length) {
+        dataBlock += ` (${a.topHoldings
+          .map((t) => `${t.symbol} $${(t.valueUsd / 1e6).toFixed(2)}M`)
+          .join(', ')})`;
+      }
+      dataBlock += '\n';
+    }
+    if (a.realizedPnlUsd !== null) {
+      dataBlock += `PnL (30d): $${(a.realizedPnlUsd / 1e3).toFixed(1)}K realized`;
+      if (a.winRate !== null) {
+        dataBlock += `, ${(a.winRate * 100).toFixed(0)}% win rate`;
+      }
+      dataBlock += '\n';
+    }
+    if (a.totalTxCount !== null) {
+      dataBlock += `Activity: ${a.totalTxCount.toLocaleString()} total transactions\n`;
+    }
+    if (a.recentTxCount > 0) {
+      const sign = a.recentNetUsd < 0 ? '-' : '+';
+      dataBlock += `Recent (this session): ${sign}$${Math.round(
+        Math.abs(a.recentNetUsd),
+      ).toLocaleString()} net across ${a.recentTxCount} tx(s)\n`;
+    }
+    if (enriched.nansen?.transactions?.items?.length) {
+      dataBlock += `Recent counterparties:\n`;
+      for (const t of enriched.nansen.transactions.items.slice(0, 3)) {
+        dataBlock += `  - ${t.tx_type} ${t.token_symbol ?? ''} $${(t.value_usd ?? 0).toLocaleString()}\n`;
+      }
+    }
+
+    return `Classify the following Mantle wallet by its profile and behaviour.
+
+${dataBlock}
+Pattern definitions:
+- cex_withdrawal: CEX hot/cold wallet
+- bridge_deposit: bridge contract
+- new_wallet_funding: fresh address, minimal history
+- contract_interaction: smart contract (DEX, lending, etc.)
+- dormant_awakening: inactive >30 days, suddenly active
+- aggregator: swap aggregator
+- whale_distribution: $1M+ holder spreading to multiple wallets
+- smart_money_rotation: profitable trader (>70% win rate) repositioning
+- sell_pressure: net mover toward CEX deposit addresses
+- accumulation: balance growing, repeated inbound
+- treasury_rebalance: protocol/DAO wallet
+- unknown: insufficient signal
+
+Summary rules:
+1. Describe the WALLET, not a single transaction. Lead with what it is.
+2. If it's a known entity, name it: "Bybit Hot Wallet", "Agni Finance Router".
+3. If holdings >$1M, mention the top holding: "USDe-heavy holder ($45M)".
+4. If >1000 txs, call it a "veteran wallet"; if <50, "fresh wallet".
+5. If Nansen PnL shows >70% win rate, flag as "profitable trader" / "Smart Money".
+6. Always include concrete dollar amounts where present — never vague "large".
+7. If data is thin (unlabeled, no Nansen, little activity), say so honestly rather than inventing a narrative.
+
+Respond in JSON with these exact keys:
+{
+  "pattern": "cex_withdrawal|bridge_deposit|new_wallet_funding|contract_interaction|dormant_awakening|aggregator|whale_distribution|smart_money_rotation|sell_pressure|accumulation|treasury_rebalance|unknown",
+  "risk_level": "low|medium|high",
+  "summary": "One concise sentence, max 30 words, describing the wallet using the rules above.",
+  "confidence": 0.0-1.0
+}`;
   }
 
   private async buildPrompt(
