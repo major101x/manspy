@@ -3,6 +3,7 @@ import { Markup } from 'telegraf';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
 import { RateLimitService } from './rate-limit.service';
+import { escapeHtml } from '../common/html.util';
 
 @Injectable()
 export class DetectionService {
@@ -87,17 +88,18 @@ export class DetectionService {
     const lines: string[] = [];
 
     if (reason === 'tracked' && label) {
-      lines.push(`👀 Wallet Alert — "${label}"`);
+      lines.push(`👀 Wallet Alert — "${escapeHtml(label)}"`);
     } else {
       lines.push('🚨 Whale Alert');
     }
 
+    // Full addresses inside <code> so they are tap-to-copy AND copy in full.
     lines.push('');
-    lines.push(`From: \`${tx.from}\``);
-    lines.push(`To: \`${tx.to ?? 'deploy'}\``);
+    lines.push(`From: <code>${tx.from}</code>`);
+    lines.push(`To: <code>${tx.to ?? 'deploy'}</code>`);
 
     if (tokenLabel) {
-      lines.push(`Value: ${tokenLabel} ($${usdValue.toLocaleString()})`);
+      lines.push(`Value: ${escapeHtml(tokenLabel)} ($${usdValue.toLocaleString()})`);
     } else {
       lines.push(`Value: ${(Number(tx.value) / 1e18).toLocaleString()} MNT ($${usdValue.toLocaleString()})`);
     }

@@ -35,22 +35,36 @@ export interface NansenPnLSummaryResponse {
   top_tokens: NansenPnLToken[];
 }
 
-export interface NansenTransaction {
-  tx_hash: string;
-  block_number: number;
-  timestamp: string;
-  from: string;
-  to: string;
-  value_usd: number;
+// A token leg inside a transaction (Nansen returns sent/received arrays, each
+// carrying counterparty addresses + their entity labels).
+export interface NansenTokenLeg {
   token_symbol?: string;
-  tx_type: string;
+  token_amount?: number;
+  price_usd?: number | null;
+  value_usd?: number | null;
+  token_address?: string;
+  from_address?: string;
+  to_address?: string;
+  from_address_label?: string;
+  to_address_label?: string;
 }
 
-export interface NansenTransactionsResponse {
-  address: string;
+export interface NansenTransaction {
   chain: string;
-  total_count: number;
-  items: NansenTransaction[];
+  method: string;
+  tokens_sent: NansenTokenLeg[];
+  tokens_received: NansenTokenLeg[];
+  volume_usd: number;
+  block_timestamp: string;
+  transaction_hash: string;
+  source_type: string;
+}
+
+// The /profiler/address/transactions endpoint returns a paginated `data` array.
+// Note: there is NO lifetime `total_count` — only this page + `is_last_page`.
+export interface NansenTransactionsResponse {
+  pagination: NansenPagination;
+  data: NansenTransaction[];
 }
 
 export interface NansenAddressEnrichment {

@@ -8,6 +8,11 @@ import {
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
 import { FlowAggregatorService } from '../common/chain-intel/flow-aggregator.service';
 import { AlertLogService } from '../web3/alert-log.service';
+import {
+  summarizeTxActivity,
+  nansenLabelFor,
+  recentCounterparties,
+} from '../nansen/nansen.util';
 
 export interface WalletContext {
   fromTxCount: number;
@@ -30,7 +35,8 @@ export interface WalletAnalysis {
   topHoldings: { symbol: string; valueUsd: number }[];
   realizedPnlUsd: number | null; // Nansen pnl-summary (30d)
   winRate: number | null;
-  totalTxCount: number | null; // Nansen transactions.total_count
+  nansenTxCount30d: number | null; // sampled tx count from Nansen (last 30d)
+  nansenMoreTx: boolean; // true when there are more txs than we sampled
   recentNetUsd: number; // from in-memory buffer (this session)
   recentTxCount: number;
   verdict: AnomalyResult | null;
@@ -191,19 +197,23 @@ export class AnomalyService {
     const realizedPnlUsd =
       enriched.nansen?.pnlSummary?.realized_pnl_usd ?? null;
     const winRate = enriched.nansen?.pnlSummary?.win_rate ?? null;
-    const totalTxCount =
-      enriched.nansen?.transactions?.total_count ??
-      enriched.nansen?.transactions?.items?.length ??
-      null;
+    const txActivity = summarizeTxActivity(enriched.nansen?.transactions ?? null);
+
+    // Prefer our curated label; fall back to Nansen's own label for the address
+    // (harvested from the counterparty legs in its transactions response).
+    const label =
+      enriched.label?.name ??
+      nansenLabelFor(enriched.nansen?.transactions ?? null, address);
 
     const base: WalletAnalysis = {
       address,
-      label: enriched.label?.name ?? null,
+      label,
       holdingsUsd,
       topHoldings,
       realizedPnlUsd,
       winRate,
-      totalTxCount,
+      nansenTxCount30d: txActivity.count || null,
+      nansenMoreTx: txActivity.hasMore,
       recentNetUsd: activity.netUsd,
       recentTxCount: activity.txCount,
       verdict: null,
@@ -274,8 +284,11 @@ export class AnomalyService {
       }
       dataBlock += '\n';
     }
-    if (a.totalTxCount !== null) {
-      dataBlock += `Activity: ${a.totalTxCount.toLocaleString()} total transactions\n`;
+    if (a.nansenTxCount30d !== null) {
+      const more = a.nansenMoreTx ? '+' : '';
+      dataBlock += `Activity (30d): ${a.nansenTxCount30d.toLocaleString()}${more} transactions${
+        a.nansenMoreTx ? ' (high activity, sampled)' : ''
+      }\n`;
     }
     if (a.recentTxCount > 0) {
       const sign = a.recentNetUsd < 0 ? '-' : '+';
@@ -283,10 +296,14 @@ export class AnomalyService {
         Math.abs(a.recentNetUsd),
       ).toLocaleString()} net across ${a.recentTxCount} tx(s)\n`;
     }
-    if (enriched.nansen?.transactions?.items?.length) {
+    const counterparties = recentCounterparties(
+      enriched.nansen?.transactions ?? null,
+      a.address,
+    );
+    if (counterparties.length) {
       dataBlock += `Recent counterparties:\n`;
-      for (const t of enriched.nansen.transactions.items.slice(0, 3)) {
-        dataBlock += `  - ${t.tx_type} ${t.token_symbol ?? ''} $${(t.value_usd ?? 0).toLocaleString()}\n`;
+      for (const c of counterparties) {
+        dataBlock += `  - ${c.label} ($${Math.round(c.volumeUsd).toLocaleString()})\n`;
       }
     }
 
@@ -431,12 +448,12 @@ Respond in JSON with these exact keys:
         }
 
         if (enriched.nansen.transactions) {
-          const txCount =
-            enriched.nansen.transactions.total_count ??
-            enriched.nansen.transactions.items?.length ??
-            0;
-          if (txCount > 0) {
-            nansenBlock += `  - Activity: ${txCount.toLocaleString()} total transactions\n`;
+          const act = summarizeTxActivity(enriched.nansen.transactions);
+          if (act.count > 0) {
+            const more = act.hasMore ? '+' : '';
+            nansenBlock += `  - Activity (30d): ${act.count.toLocaleString()}${more} transactions${
+              act.hasMore ? ' (high activity)' : ''
+            }\n`;
           }
         }
       }

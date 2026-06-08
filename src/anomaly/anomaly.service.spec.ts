@@ -59,9 +59,9 @@ describe('AnomalyService.analyzeWallet', () => {
     expect(groqCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('maps Nansen holdings, PnL, and tx count', async () => {
+  it('maps Nansen holdings, PnL, sampled activity, and harvests its label', async () => {
     labels.lookupWithEnrichment.mockResolvedValue({
-      label: null,
+      label: null, // not in our curated list — should fall back to Nansen's label
       nansen: {
         address: ADDR,
         currentBalance: {
@@ -71,7 +71,23 @@ describe('AnomalyService.analyzeWallet', () => {
           ],
         },
         pnlSummary: { realized_pnl_usd: 45_000, win_rate: 0.68 },
-        transactions: { total_count: 1247, items: [] },
+        transactions: {
+          pagination: { page: 1, per_page: 100, is_last_page: false },
+          data: [
+            {
+              tokens_sent: [],
+              tokens_received: [
+                {
+                  from_address: '0xd8169f099ce16c87a99d2a8494023574b5eea9c5',
+                  to_address: ADDR,
+                  to_address_label: '🏦 Bybit: Deposit [0x000000]',
+                  from_address_label: '🏦 Bybit: Hot Wallet [0xd8169f]',
+                },
+              ],
+              volume_usd: 7785,
+            },
+          ],
+        },
       },
     });
     flow.computeAddressActivity.mockReturnValue({ netUsd: 120_000, txCount: 4 });
@@ -83,7 +99,9 @@ describe('AnomalyService.analyzeWallet', () => {
     expect(a.topHoldings[0]).toEqual({ symbol: 'USDe', valueUsd: 2_100_000 });
     expect(a.realizedPnlUsd).toBe(45_000);
     expect(a.winRate).toBe(0.68);
-    expect(a.totalTxCount).toBe(1247);
+    expect(a.nansenTxCount30d).toBe(1);
+    expect(a.nansenMoreTx).toBe(true); // is_last_page: false
+    expect(a.label).toBe('Bybit: Deposit'); // harvested + cleaned from Nansen leg
     expect(a.recentNetUsd).toBe(120_000);
     expect(a.recentTxCount).toBe(4);
   });

@@ -111,7 +111,9 @@ export class NansenService {
       address,
       chain: 'mantle',
       date: { from, to },
-      pagination: { page: 1, per_page: 5 },
+      // Nansen exposes no lifetime tx count; sample a page so we can report a
+      // real "N+ txs in 30d" signal and harvest counterparty labels.
+      pagination: { page: 1, per_page: 100 },
     });
   }
 

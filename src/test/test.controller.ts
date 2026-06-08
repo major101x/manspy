@@ -63,7 +63,7 @@ export class TestController {
       tokenLabel,
       (chatId, text, extra) => {
         this.logger.log(`[TEST] Sending Telegram alert to chatId=${chatId}`);
-        return this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra });
+        return this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...extra });
       },
     );
 

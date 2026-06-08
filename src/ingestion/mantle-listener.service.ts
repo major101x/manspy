@@ -8,6 +8,7 @@ import { PriceService } from '../price/price.service';
 import { DetectionService } from '../detection/detection.service';
 import { AnomalyService, WalletContext } from '../anomaly/anomaly.service';
 import { TelegrafService } from '../bot/telegraf.service';
+import { escapeHtml } from '../common/html.util';
 import { AddressLabelService } from '../common/chain-intel/address-label.service';
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
 
@@ -117,7 +118,7 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
             }
 
             const messageIds = await this.detection.processTx(normalized, usdValue, tokenLabel, (chatId, text, extra) =>
-              this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra }),
+              this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...extra }),
             );
 
             // Add to buffer for pattern analysis
@@ -163,14 +164,18 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
         if (!result) return;
 
         const latestTxHash = tx.txHash;
-        const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 https://mantlescan.xyz/tx/${latestTxHash}`;
+        // Escape the LLM-generated summary for HTML so a stray <, >, or & can't
+        // throw a parse error and silently drop the whole AI edit.
+        const aiBlock = `\n\n🤖 Pattern: ${escapeHtml(result.pattern)} | Risk: ${escapeHtml(result.risk_level)}\n${escapeHtml(result.summary)}\n\n🔗 https://mantlescan.xyz/tx/${latestTxHash}`;
 
         for (const [, { chatId, messageId, text }] of messageIds) {
           // Skip if already edited
           if (text.includes('🤖 Pattern:')) continue;
 
           this.bot.telegram
-            .editMessageText(chatId, messageId, undefined, text + aiBlock)
+            .editMessageText(chatId, messageId, undefined, text + aiBlock, {
+              parse_mode: 'HTML',
+            })
             .catch((e: any) =>
               this.logger.warn(`Failed to edit alert: ${e?.message}`),
             );

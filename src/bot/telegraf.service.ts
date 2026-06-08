@@ -125,7 +125,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       this.lastAnalyseAt.set(chatId, Date.now());
 
       const placeholder = await ctx.reply(
-        `🔍 Analysing \`${this.shortAddr(address)}\` — pulling Nansen + on-chain activity…`,
+        `🔍 Analysing \`${address}\` — pulling Nansen + on-chain activity…`,
         { parse_mode: 'Markdown' },
       );
 
@@ -282,7 +282,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       lines.push('Top accumulators:');
       f.topAccumulators.forEach((a, i) => {
         lines.push(
-          `  ${i + 1}. \`${this.shortAddr(a.address)}\` +${this.fmtUsd(a.netUsd)}`,
+          `  ${i + 1}. \`${a.address}\` +${this.fmtUsd(a.netUsd)}`,
         );
       });
     }
@@ -291,7 +291,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       lines.push('');
       lines.push('Distribution waves:');
       f.distributionWaves.forEach((w) => {
-        const who = w.fromLabel ?? this.shortAddr(w.from);
+        const who = w.fromLabel ?? `\`${w.from}\``;
         lines.push(
           `  • ${who} → ${w.recipientCount} wallets, ${this.fmtUsd(w.totalUsd)} total`,
         );
@@ -304,7 +304,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
   private formatWalletAnalysis(a: WalletAnalysis): string {
     if (!a.hasData) {
       return (
-        `🔍 *Wallet Analysis* — \`${this.shortAddr(a.address)}\`\n\n` +
+        `🔍 *Wallet Analysis* — \`${a.address}\`\n\n` +
         'No Mantle data for this address yet — not a known entity, no Nansen ' +
         'profile, and no activity seen this session.\n\n' +
         `🔗 https://mantlescan.xyz/address/${a.address}`
@@ -312,7 +312,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     }
 
     const lines: string[] = [];
-    lines.push(`🔍 *Wallet Analysis* — \`${this.shortAddr(a.address)}\``);
+    lines.push(`🔍 *Wallet Analysis* — \`${a.address}\``);
 
     // Identity line: known label, else Nansen one-liner, else generic.
     if (a.label) {
@@ -349,8 +349,9 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
         `PnL (30d): ${this.fmtSigned(a.realizedPnlUsd)} realized${win}`,
       );
     }
-    if (a.totalTxCount !== null) {
-      facts.push(`Activity: ${a.totalTxCount.toLocaleString()} txs`);
+    if (a.nansenTxCount30d !== null) {
+      const more = a.nansenMoreTx ? '+' : '';
+      facts.push(`Activity (30d): ${a.nansenTxCount30d.toLocaleString()}${more} txs`);
     }
     if (a.recentTxCount > 0) {
       facts.push(
@@ -377,10 +378,6 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
   private fmtSigned(usd: number): string {
     const sign = usd < 0 ? '−' : '+';
     return `${sign}${this.fmtUsd(Math.abs(usd))}`;
-  }
-
-  private shortAddr(addr: string): string {
-    return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
   }
 
   private appRef: any;
