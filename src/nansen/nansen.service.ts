@@ -14,6 +14,8 @@ export class NansenService {
   private readonly apiKey: string;
   private readonly cache: Redis | null;
   private readonly CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+  // Bump when the cached response shape or fetch params change (e.g. per_page).
+  private static readonly CACHE_VERSION = 'nansen:v2';
   private disabledUntil = 0;
 
   constructor() {
@@ -35,7 +37,9 @@ export class NansenService {
       return null;
     }
 
-    const cacheKey = `nansen:${address.toLowerCase()}`;
+    // Versioned so changing the response shape or fetch params (e.g. per_page)
+    // invalidates stale entries instead of serving them until the 7-day TTL.
+    const cacheKey = `${NansenService.CACHE_VERSION}:${address.toLowerCase()}`;
 
     // Check cache
     if (this.cache) {
