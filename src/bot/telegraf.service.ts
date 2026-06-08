@@ -7,6 +7,7 @@ import { RateLimitService } from '../detection/rate-limit.service';
 import { FlowAggregatorService } from '../common/chain-intel/flow-aggregator.service';
 import { AlertLogService } from '../web3/alert-log.service';
 import { AnomalyService, WalletAnalysis } from '../anomaly/anomaly.service';
+import { escapeHtml } from '../common/html.util';
 
 const ANALYSE_COOLDOWN_MS = 20_000;
 
@@ -125,8 +126,8 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       this.lastAnalyseAt.set(chatId, Date.now());
 
       const placeholder = await ctx.reply(
-        `🔍 Analysing \`${address}\` — pulling Nansen + on-chain activity…`,
-        { parse_mode: 'Markdown' },
+        `🔍 Analysing <code>${address}</code> — pulling Nansen + on-chain activity…`,
+        { parse_mode: 'HTML' },
       );
 
       let analysis: WalletAnalysis;
@@ -148,7 +149,7 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
         placeholder.message_id,
         undefined,
         this.formatWalletAnalysis(analysis),
-        { parse_mode: 'Markdown' },
+        { parse_mode: 'HTML' },
       );
     });
 
@@ -302,9 +303,12 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
   }
 
   private formatWalletAnalysis(a: WalletAnalysis): string {
+    // HTML parse_mode: the verdict pattern (e.g. cex_withdrawal) and the LLM
+    // summary can contain _, *, etc., which break Markdown. HTML escaping is
+    // total and safe for that untrusted text.
     if (!a.hasData) {
       return (
-        `🔍 *Wallet Analysis* — \`${a.address}\`\n\n` +
+        `🔍 <b>Wallet Analysis</b> — <code>${a.address}</code>\n\n` +
         'No Mantle data for this address yet — not a known entity, no Nansen ' +
         'profile, and no activity seen this session.\n\n' +
         `🔗 https://mantlescan.xyz/address/${a.address}`
@@ -312,16 +316,16 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     }
 
     const lines: string[] = [];
-    lines.push(`🔍 *Wallet Analysis* — \`${a.address}\``);
+    lines.push(`🔍 <b>Wallet Analysis</b> — <code>${a.address}</code>`);
 
     // Identity line: known label, else Nansen one-liner, else generic.
     if (a.label) {
-      lines.push(a.label);
+      lines.push(escapeHtml(a.label));
     } else if (a.holdingsUsd && a.holdingsUsd > 0) {
       const top = a.topHoldings[0];
       lines.push(
         `Unlabeled wallet — ${this.fmtUsd(a.holdingsUsd)} holdings` +
-          (top ? `, top: ${top.symbol}` : ''),
+          (top ? `, top: ${escapeHtml(top.symbol)}` : ''),
       );
     } else {
       lines.push('Unlabeled wallet');
@@ -329,14 +333,16 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
 
     if (a.verdict) {
       lines.push('');
-      lines.push(`🤖 ${a.verdict.pattern} | Risk: ${a.verdict.risk_level}`);
-      lines.push(a.verdict.summary);
+      lines.push(
+        `🤖 ${escapeHtml(a.verdict.pattern)} | Risk: ${escapeHtml(a.verdict.risk_level)}`,
+      );
+      lines.push(escapeHtml(a.verdict.summary));
     }
 
     const facts: string[] = [];
     if (a.holdingsUsd && a.holdingsUsd > 0) {
       const top = a.topHoldings
-        .map((t) => `${t.symbol} ${this.fmtUsd(t.valueUsd)}`)
+        .map((t) => `${escapeHtml(t.symbol)} ${this.fmtUsd(t.valueUsd)}`)
         .join(', ');
       facts.push(
         `Holdings: ${this.fmtUsd(a.holdingsUsd)}` + (top ? `  (${top})` : ''),
