@@ -150,7 +150,7 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
     tx: NormalizedTransaction,
     usdValue: number,
     tokenLabel: string | undefined,
-    messageIds: Map<string, { messageId: number; chatId: number; reason: string; text: string }>,
+    messageIds: Map<string, { messageId: number; chatId: number; reason: string; text: string; markup?: any }>,
   ) {
     const wallet = await this.getWalletContext(tx);
 
@@ -168,13 +168,16 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
         // throw a parse error and silently drop the whole AI edit.
         const aiBlock = `\n\n🤖 Pattern: ${escapeHtml(result.pattern)} | Risk: ${escapeHtml(result.risk_level)}\n${escapeHtml(result.summary)}\n\n🔗 https://mantlescan.xyz/tx/${latestTxHash}`;
 
-        for (const [, { chatId, messageId, text }] of messageIds) {
+        for (const [, { chatId, messageId, text, markup }] of messageIds) {
           // Skip if already edited
           if (text.includes('🤖 Pattern:')) continue;
 
           this.bot.telegram
             .editMessageText(chatId, messageId, undefined, text + aiBlock, {
               parse_mode: 'HTML',
+              // editMessageText drops the inline keyboard unless re-supplied,
+              // so re-attach the Watch/Unwatch + Explorer buttons.
+              reply_markup: markup,
             })
             .catch((e: any) =>
               this.logger.warn(`Failed to edit alert: ${e?.message}`),

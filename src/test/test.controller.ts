@@ -89,13 +89,14 @@ export class TestController {
 
           const aiBlock = `\n\n🤖 Pattern: ${escapeHtml(result.pattern)} | Risk: ${escapeHtml(result.risk_level)}\n${escapeHtml(result.summary)}\n\n🔗 https://mantlescan.xyz/tx/${fakeTx.txHash}`;
 
-          for (const [, { chatId, messageId, text }] of messageIds) {
+          for (const [, { chatId, messageId, text, markup }] of messageIds) {
             if (text.includes('🤖 Pattern:')) continue;
 
             this.logger.log(`[TEST] Editing Telegram message ${messageId} for chatId=${chatId}`);
             this.bot.telegram
               .editMessageText(chatId, messageId, undefined, text + aiBlock, {
                 parse_mode: 'HTML',
+                reply_markup: markup,
               })
               .catch((e: any) => this.logger.error(`[TEST] Failed to edit alert: ${e?.message}`));
           }

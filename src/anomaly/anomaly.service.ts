@@ -48,6 +48,7 @@ interface AlertTarget {
   chatId: number;
   reason: string;
   text: string;
+  markup?: any;
 }
 
 @Injectable()

@@ -14,7 +14,7 @@ export class DetectionService {
     private rateLimit: RateLimitService,
   ) {}
 
-  async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>): Promise<Map<string, { messageId: number; chatId: number; reason: string; text: string }>> {
+  async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>): Promise<Map<string, { messageId: number; chatId: number; reason: string; text: string; markup?: any }>> {
     const [thresholdUsers, trackedMatches] = await Promise.all([
       this.prisma.user.findMany({ where: { alertsEnabled: true, thresholdUsd: { lte: usdValue } } }),
       this.prisma.trackedWallet.findMany({
@@ -23,7 +23,7 @@ export class DetectionService {
       }),
     ]);
 
-    const messageIds = new Map<string, { messageId: number; chatId: number; reason: string; text: string }>();
+    const messageIds = new Map<string, { messageId: number; chatId: number; reason: string; text: string; markup?: any }>();
 
     if (thresholdUsers.length === 0 && trackedMatches.length === 0) {
       if (usdValue > 0) this.logger.log(`No users match tx ${tx.txHash.slice(0, 10)}… ($${usdValue.toLocaleString()})`);
@@ -74,7 +74,7 @@ export class DetectionService {
         this.logger.warn(`Failed to send alert to ${match.user.telegramChatId}: ${e?.message}`);
         return null;
       });
-      if (msg?.message_id) messageIds.set(match.user.id, { messageId: msg.message_id, chatId: Number(match.user.telegramChatId), reason: match.reason, text });
+      if (msg?.message_id) messageIds.set(match.user.id, { messageId: msg.message_id, chatId: Number(match.user.telegramChatId), reason: match.reason, text, markup: kb.reply_markup });
 
       await this.prisma.alertLog.create({
         data: { userId: match.user.id, txHash: tx.txHash, type: match.reason, message: text },
