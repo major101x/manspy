@@ -4,6 +4,7 @@ import { AnomalyService } from '../anomaly/anomaly.service';
 import { TelegrafService } from '../bot/telegraf.service';
 import { RecentTxBufferService } from '../common/chain-intel/recent-tx-buffer.service';
 import { NormalizedTransaction } from '../ingestion/transaction-normalizer.service';
+import { escapeHtml } from '../common/html.util';
 
 interface TestAlertDto {
   chatId: number;
@@ -86,14 +87,16 @@ export class TestController {
 
           this.logger.log(`[TEST] Anomaly result for tx ${fakeTx.txHash}: pattern=${result.pattern}, risk=${result.risk_level}, confidence=${result.confidence}, batchSize=${batchSize}`);
 
-          const aiBlock = `\n\n🤖 Pattern: ${result.pattern} | Risk: ${result.risk_level}\n${result.summary}\n\n🔗 https://mantlescan.xyz/tx/${fakeTx.txHash}`;
+          const aiBlock = `\n\n🤖 Pattern: ${escapeHtml(result.pattern)} | Risk: ${escapeHtml(result.risk_level)}\n${escapeHtml(result.summary)}\n\n🔗 https://mantlescan.xyz/tx/${fakeTx.txHash}`;
 
           for (const [, { chatId, messageId, text }] of messageIds) {
             if (text.includes('🤖 Pattern:')) continue;
 
             this.logger.log(`[TEST] Editing Telegram message ${messageId} for chatId=${chatId}`);
             this.bot.telegram
-              .editMessageText(chatId, messageId, undefined, text + aiBlock)
+              .editMessageText(chatId, messageId, undefined, text + aiBlock, {
+                parse_mode: 'HTML',
+              })
               .catch((e: any) => this.logger.error(`[TEST] Failed to edit alert: ${e?.message}`));
           }
         })

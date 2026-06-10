@@ -1,0 +1,45 @@
+<svg width="720" height="200" viewBox="0 0 720 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ManSpy logo">
+  <defs>
+    <linearGradient id="wbg" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B1416"/>
+      <stop offset="1" stop-color="#06292B"/>
+    </linearGradient>
+    <radialGradient id="wiris" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#0A2A2E"/>
+      <stop offset="1" stop-color="#041517"/>
+    </radialGradient>
+    <linearGradient id="wsweep" x1="100" y1="100" x2="162" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#37E6C0" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#37E6C0" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="wlens">
+      <path d="M16 100 C 44 60, 156 60, 184 100 C 156 140, 44 140, 16 100 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- mark -->
+  <g transform="translate(20,0)">
+    <rect x="2" y="2" width="196" height="196" rx="44" fill="url(#wbg)" stroke="#10393C" stroke-width="2"/>
+    <path d="M16 100 C 44 60, 156 60, 184 100 C 156 140, 44 140, 16 100 Z" fill="url(#wiris)" stroke="#37E6C0" stroke-width="2.5"/>
+    <g clip-path="url(#wlens)">
+      <circle cx="100" cy="100" r="16" fill="none" stroke="#1C5B5E" stroke-width="1.2"/>
+      <circle cx="100" cy="100" r="30" fill="none" stroke="#1C5B5E" stroke-width="1.2"/>
+      <circle cx="100" cy="100" r="44" fill="none" stroke="#164B4E" stroke-width="1.2"/>
+      <line x1="16" y1="100" x2="184" y2="100" stroke="#164B4E" stroke-width="1.2"/>
+      <line x1="100" y1="60" x2="100" y2="140" stroke="#164B4E" stroke-width="1.2"/>
+      <path d="M100 100 L 162 58 A 76 76 0 0 0 118 44 Z" fill="url(#wsweep)"/>
+      <circle cx="134" cy="80" r="3.6" fill="#37E6C0"/>
+      <circle cx="76" cy="118" r="2.4" fill="#37E6C0" fill-opacity="0.6"/>
+    </g>
+    <circle cx="100" cy="100" r="10.5" fill="#0B1416" stroke="#37E6C0" stroke-width="2.5"/>
+    <circle cx="100" cy="100" r="3.2" fill="#37E6C0"/>
+  </g>
+
+  <!-- wordmark -->
+  <g transform="translate(244,0)">
+    <text x="0" y="118" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="76" font-weight="800" letter-spacing="-1">
+      <tspan fill="#EAF7F4">Man</tspan><tspan fill="#37E6C0">Spy</tspan>
+    </text>
+    <text x="2" y="150" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="500" letter-spacing="5.5" fill="#5FA8A2">MANTLE WHALE WATCH</text>
+  </g>
+</svg>

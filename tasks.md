@@ -78,7 +78,7 @@
 **Time:** Completed
 
 ### 6. Polish
-- [ ] Add bot logo to Telegram profile picture
+- [x] Add bot logo to Telegram profile picture (`assets/manspy-avatar.png`, 512×512)
 - [ ] Add `/feedback` command for users to flag bad alerts
 - [ ] Add weekly summary report (stretch goal)
 

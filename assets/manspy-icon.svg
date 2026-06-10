@@ -1,0 +1,46 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ManSpy icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B1416"/>
+      <stop offset="1" stop-color="#06292B"/>
+    </linearGradient>
+    <radialGradient id="iris" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#0A2A2E"/>
+      <stop offset="1" stop-color="#041517"/>
+    </radialGradient>
+    <linearGradient id="sweep" x1="128" y1="128" x2="206" y2="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#37E6C0" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#37E6C0" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="lens">
+      <path d="M24 128 C 60 78, 196 78, 232 128 C 196 178, 60 178, 24 128 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- rounded square plate -->
+  <rect x="2" y="2" width="252" height="252" rx="56" fill="url(#bg)" stroke="#10393C" stroke-width="2"/>
+
+  <!-- eye / lens shape -->
+  <path d="M24 128 C 60 78, 196 78, 232 128 C 196 178, 60 178, 24 128 Z" fill="url(#iris)" stroke="#37E6C0" stroke-width="3"/>
+
+  <!-- radar scope clipped to the eye -->
+  <g clip-path="url(#lens)">
+    <!-- concentric range rings -->
+    <circle cx="128" cy="128" r="20" fill="none" stroke="#1C5B5E" stroke-width="1.5"/>
+    <circle cx="128" cy="128" r="38" fill="none" stroke="#1C5B5E" stroke-width="1.5"/>
+    <circle cx="128" cy="128" r="56" fill="none" stroke="#164B4E" stroke-width="1.5"/>
+    <!-- cross hairs -->
+    <line x1="24" y1="128" x2="232" y2="128" stroke="#164B4E" stroke-width="1.5"/>
+    <line x1="128" y1="78" x2="128" y2="178" stroke="#164B4E" stroke-width="1.5"/>
+    <!-- sweep beam -->
+    <path d="M128 128 L 206 74 A 96 96 0 0 0 150 56 Z" fill="url(#sweep)"/>
+    <!-- detection blips (whale hits) -->
+    <circle cx="170" cy="100" r="4.5" fill="#37E6C0"/>
+    <circle cx="96" cy="150" r="3" fill="#37E6C0" fill-opacity="0.65"/>
+    <circle cx="150" cy="148" r="2.5" fill="#37E6C0" fill-opacity="0.5"/>
+  </g>
+
+  <!-- pupil -->
+  <circle cx="128" cy="128" r="13" fill="#0B1416" stroke="#37E6C0" stroke-width="3"/>
+  <circle cx="128" cy="128" r="4" fill="#37E6C0"/>
+</svg>
