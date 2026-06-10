@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Telegraf } from 'telegraf';
+import { Telegraf, Markup } from 'telegraf';
 import { isAddress } from 'viem';
 import { UserService } from './user.service';
 import { RateLimitService } from '../detection/rate-limit.service';
@@ -235,6 +235,8 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
         'From Alert',
       );
       await ctx.answerCbQuery('✅ Added to watch list');
+      // Flip the button so it now offers to undo: Watch → Unwatch.
+      await this.swapWatchButton(ctx, '❌ Unwatch', `unwatch:${address}`);
     });
 
     this.action(/^unwatch:(.+)/, async (ctx) => {
@@ -248,7 +250,35 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       await ctx.answerCbQuery(
         removed ? '⏹ Removed from watch list' : 'Not in your watch list',
       );
+      // Flip the button back: Unwatch → Watch.
+      await this.swapWatchButton(ctx, '👀 Watch', `watch:${address}`);
     });
+  }
+
+  /**
+   * Replace the watch/unwatch toggle button on the alert's inline keyboard
+   * while preserving any other buttons (e.g. the Explorer URL button). The
+   * toggle is the only callback button in the row; URL buttons are kept as-is.
+   */
+  private async swapWatchButton(
+    ctx: any,
+    text: string,
+    callbackData: string,
+  ): Promise<void> {
+    try {
+      const rows: any[][] =
+        ctx.callbackQuery?.message?.reply_markup?.inline_keyboard ?? [];
+      const preserved = rows
+        .flat()
+        .filter((b: any) => 'url' in b)
+        .map((b: any) => Markup.button.url(b.text, b.url));
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback(text, callbackData), ...preserved],
+      ]);
+      await ctx.editMessageReplyMarkup(keyboard.reply_markup);
+    } catch (e: any) {
+      this.logger.warn(`Failed to swap watch button: ${e?.message}`);
+    }
   }
 
   private formatFlowDigest(): string {
