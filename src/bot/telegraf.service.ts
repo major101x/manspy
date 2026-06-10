@@ -428,7 +428,13 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
       const me = await this.telegram.getMe();
       this.botInfo = me;
       this.logger.log(`@${me.username} authenticated, starting launch`);
-      this.launch({ dropPendingUpdates: true });
+      // launch() returns a promise that rejects if the polling loop dies (e.g.
+      // a 409 Conflict when a second instance is polling). It is intentionally
+      // not awaited — but it MUST be .catch()'d, or the rejection is unhandled
+      // and crashes the whole process, taking block ingestion down with it.
+      this.launch({ dropPendingUpdates: true }).catch((err: any) =>
+        this.handlePollingError(err),
+      );
       this.setupRuntimeErrorHandling();
       void this.registerCommandMenu();
     } catch (err: any) {
@@ -466,6 +472,38 @@ export class TelegrafService extends Telegraf implements OnModuleDestroy {
     } catch (e: any) {
       this.logger.warn(`Failed to register command menu: ${e?.message}`);
     }
+  }
+
+  /**
+   * Handles a rejection from the polling loop. A 409 Conflict means another
+   * instance is polling the same token (deploy overlap or a stray local
+   * instance) — that is transient and must NOT crash the process, since block
+   * ingestion runs in the same process and is unaffected. Back off and re-launch.
+   * Only a genuine auth failure (401) is fatal.
+   */
+  private handlePollingError(err: any) {
+    const message = err?.message ?? String(err);
+    const msg = message.toLowerCase();
+
+    if (msg.includes('401') || msg.includes('unauthorized')) {
+      this.logger.error(`Fatal bot auth error: ${message}`);
+      void this.gracefulCrash();
+      return;
+    }
+
+    const isConflict = msg.includes('409') || msg.includes('conflict');
+    this.logger.warn(
+      isConflict
+        ? 'Telegram 409 Conflict: another bot instance is polling this token. ' +
+            'Block ingestion is unaffected. Retrying launch in 15s — make sure ' +
+            'no local/duplicate instance is running.'
+        : `Bot polling error: ${message}. Retrying launch in 15s...`,
+    );
+    setTimeout(() => {
+      this.launch({ dropPendingUpdates: true }).catch((e: any) =>
+        this.handlePollingError(e),
+      );
+    }, 15000);
   }
 
   private setupRuntimeErrorHandling() {
