@@ -14,7 +14,7 @@ export class DetectionService {
     private rateLimit: RateLimitService,
   ) {}
 
-  async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>): Promise<Map<string, { messageId: number; chatId: number; reason: string; text: string; markup?: any }>> {
+  async processTx(tx: NormalizedTransaction, usdValue: number, tokenLabel: string | undefined, sendAlert: (chatId: number, text: string, extra?: any) => Promise<any>, bypassRateLimit = false): Promise<Map<string, { messageId: number; chatId: number; reason: string; text: string; markup?: any }>> {
     const [thresholdUsers, trackedMatches] = await Promise.all([
       this.prisma.user.findMany({ where: { alertsEnabled: true, thresholdUsd: { lte: usdValue } } }),
       this.prisma.trackedWallet.findMany({
@@ -45,7 +45,11 @@ export class DetectionService {
     }
 
     for (const [, match] of matched) {
-      const rateCheck = this.rateLimit.check(match.user.id);
+      // Test alerts bypass the limiter so demo rehearsals can't lock the
+      // endpoint out; real chain alerts still respect the 10/hour cap.
+      const rateCheck = bypassRateLimit
+        ? { allowed: true, remaining: 10, resetInMinutes: 60 }
+        : this.rateLimit.check(match.user.id);
       if (!rateCheck.allowed) {
         if (this.rateLimit.markNotified(match.user.id)) {
           await sendAlert(

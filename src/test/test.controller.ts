@@ -66,6 +66,7 @@ export class TestController {
         this.logger.log(`[TEST] Sending Telegram alert to chatId=${chatId}`);
         return this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...extra });
       },
+      true, // bypass rate limit — test alerts must always fire for demos
     );
 
     this.logger.log(`[TEST] Detection matched ${messageIds.size} user(s)`);
