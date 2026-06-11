@@ -65,6 +65,19 @@ export class MantleListenerService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Connected to Mantle RPC');
 
     this.unwatch = this.client.watchBlocks({
+      // Poll over the transport instead of relying on a long-lived eth_subscribe
+      // WebSocket — those are flaky on hosts like Render and, with no onError,
+      // a dropped subscription silently stops all block delivery. Polling via
+      // the fallback (WS or HTTP, whichever is up) is far more reliable.
+      poll: true,
+      pollingInterval: 2000,
+      onError: (err: any) => {
+        this.logger.error(`watchBlocks error: ${err?.message ?? err}`);
+        if (!this.stopped) {
+          this.logger.warn('Block watcher errored, reconnecting...');
+          void this.connectWithRetry();
+        }
+      },
       onBlock: async (header) => {
         try {
           if (!header?.number) return;
