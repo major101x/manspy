@@ -51,7 +51,7 @@ No accessible, real-time, AI-powered alert system exists specifically for Mantle
 
 ## Demo Video
 
-[Link to 4-minute demo video]
+📺 **[Watch the demo on YouTube](https://www.youtube.com/watch?v=H-8h9S1-lwA)**
 
 The video demonstrates: real-time alert firing, instant AI analysis with Nansen enrichment, wallet tracking configuration, rapid alert handling, and production infrastructure.
 
