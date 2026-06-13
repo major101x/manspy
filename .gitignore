@@ -4,3 +4,4 @@ dist/
 *.log
 docs/
 CLAUDE.md
+AGENTS.md
